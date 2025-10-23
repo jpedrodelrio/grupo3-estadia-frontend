@@ -1,13 +1,25 @@
 import React from 'react';
-import { Bell, User, Settings, Upload } from 'lucide-react';
+import { Bell, User, Settings, Upload, FileSpreadsheet, Database, RefreshCw } from 'lucide-react';
 
 interface HeaderProps {
   onOpenUploadModal: () => void;
   onOpenNewPatientModal: () => void;
+  onOpenExcelModal: () => void;
+  onOpenDualExcelModal: () => void;
   alertCount: number;
+  useAPIData?: boolean;
+  onToggleAPIData?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenUploadModal, onOpenNewPatientModal, alertCount }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  onOpenUploadModal, 
+  onOpenNewPatientModal, 
+  onOpenExcelModal, 
+  onOpenDualExcelModal, 
+  alertCount,
+  useAPIData = false,
+  onToggleAPIData
+}) => {
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -27,6 +39,38 @@ export const Header: React.FC<HeaderProps> = ({ onOpenUploadModal, onOpenNewPati
           </div>
 
           <div className="flex items-center space-x-4">
+            {/* Botón para alternar datos de API */}
+            {onToggleAPIData && (
+              <button
+                onClick={onToggleAPIData}
+                className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md transition-colors ${
+                  useAPIData 
+                    ? 'text-white bg-blue-600 hover:bg-blue-700 focus:ring-blue-500' 
+                    : 'text-blue-700 bg-blue-100 hover:bg-blue-200 focus:ring-blue-500'
+                } focus:outline-none focus:ring-2 focus:ring-offset-2`}
+                title={useAPIData ? 'Usando datos del CSV (39,222 pacientes)' : 'Usando datos de ejemplo'}
+              >
+                <Database className="h-4 w-4 mr-2" />
+                {useAPIData ? 'Datos CSV' : 'Datos Ejemplo'}
+              </button>
+            )}
+
+            <button
+              onClick={onOpenDualExcelModal}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-purple-700 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Importar Relacionados
+            </button>
+
+            <button
+              onClick={onOpenExcelModal}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Importar Excel
+            </button>
+
             <button
               onClick={onOpenUploadModal}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"

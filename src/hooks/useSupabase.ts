@@ -97,6 +97,20 @@ export const useSupabase = () => {
     return data;
   };
 
+  const createMultiplePatientNotes = async (notes: PatientNote[]): Promise<PatientNote[]> => {
+    const { data, error } = await supabase
+      .from('patient_notes')
+      .insert(notes)
+      .select();
+    
+    if (error) {
+      console.error('Error creating multiple patient notes:', error);
+      return [];
+    }
+    
+    return data || [];
+  };
+
   const getActiveAlerts = async (): Promise<Alert[]> => {
     const { data, error } = await supabase
       .from('alerts')
@@ -122,6 +136,7 @@ export const useSupabase = () => {
     updatePatient,
     getPatientNotes,
     createPatientNote,
+    createMultiplePatientNotes,
     getActiveAlerts
   };
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from './components/Layout/Header';
 import { StatsCards } from './components/Dashboard/StatsCards';
 import { OperationalDashboard } from './components/Dashboard/OperationalDashboard';
@@ -10,8 +10,11 @@ import { PatientTable } from './components/Dashboard/PatientTable';
 import { PatientDetailModal } from './components/Modals/PatientDetailModal';
 import { NewPatientModal } from './components/Modals/NewPatientModal';
 import { UploadModal } from './components/Modals/UploadModal';
-import { Patient, Task } from './types';
-import { useSupabase } from './hooks/useSupabase';
+import { ExcelUploadModal } from './components/Modals/ExcelUploadModal';
+import { DualExcelUploadModal } from './components/Modals/DualExcelUploadModal';
+import { Patient, Task, PatientNote } from './types';
+// import { useSupabase } from './hooks/useSupabase';
+import { usePatientsAPI, usePatientStats } from './hooks/usePatientsAPI';
 
 function App() {
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -23,6 +26,11 @@ function App() {
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [showNewPatientModal, setShowNewPatientModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showExcelModal, setShowExcelModal] = useState(false);
+  const [showDualExcelModal, setShowDualExcelModal] = useState(false);
+  
+  // Estado para controlar si usar datos de API
+  const [useAPIData, setUseAPIData] = useState(false);
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,7 +38,11 @@ function App() {
   const [riskFilter, setRiskFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  const { getPatients } = useSupabase();
+  // const { getPatients } = useSupabase();
+  
+  // Hooks para datos de API
+  const { patients: apiPatients, loading: apiLoading, error: apiError } = usePatientsAPI();
+  const { stats: apiStats, loading: statsLoading } = usePatientStats();
 
   useEffect(() => {
     loadPatients();
@@ -38,15 +50,17 @@ function App() {
   }, []);
 
   useEffect(() => {
-    applyFilters();
-  }, [patients, searchTerm, serviceFilter, riskFilter, statusFilter]);
+    if (!useAPIData) {
+      applyFilters();
+    }
+  }, [patients, searchTerm, serviceFilter, riskFilter, statusFilter, useAPIData]);
 
   const loadPatients = async () => {
     setLoading(true);
-    const patientsData = await getPatients();
+    // const patientsData = await getPatients();
     
-    // If no data from Supabase, use sample data
-    if (patientsData.length === 0) {
+    // Usar datos de ejemplo directamente ya que Supabase no está configurado
+    const patientsData: Patient[] = [];
       const samplePatients: Patient[] = [
         {
           id: '1',
@@ -182,9 +196,6 @@ function App() {
         },
       ];
       setPatients(samplePatients);
-    } else {
-      setPatients(patientsData);
-    }
     
     setLoading(false);
   };
@@ -294,6 +305,16 @@ function App() {
     setPatients([newPatient, ...patients]);
   };
 
+  const handleExcelImport = (importedPatients: Patient[]) => {
+    setPatients([...importedPatients, ...patients]);
+  };
+
+  const handleDualExcelImport = (importedPatients: Patient[], importedNotes: PatientNote[]) => {
+    setPatients([...importedPatients, ...patients]);
+    // Las notas se guardarán automáticamente en Supabase
+    console.log(`Importados ${importedPatients.length} pacientes y ${importedNotes.length} gestiones`);
+  };
+
   const handleCreateTask = (newTask: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
     const task: Task = {
       ...newTask,
@@ -331,7 +352,11 @@ function App() {
       <Header
         onOpenUploadModal={() => setShowUploadModal(true)}
         onOpenNewPatientModal={() => setShowNewPatientModal(true)}
+        onOpenExcelModal={() => setShowExcelModal(true)}
+        onOpenDualExcelModal={() => setShowDualExcelModal(true)}
         alertCount={alertCount}
+        useAPIData={useAPIData}
+        onToggleAPIData={() => setUseAPIData(!useAPIData)}
       />
 
       {/* Navigation Tabs */}
@@ -425,8 +450,15 @@ function App() {
             </div>
 
             <PatientTable
-              patients={filteredPatients}
+              patients={useAPIData ? undefined : filteredPatients}
               onViewPatient={handleViewPatient}
+              useAPIData={useAPIData}
+              filters={{
+                search: searchTerm,
+                service: serviceFilter,
+                risk: riskFilter,
+                status: statusFilter
+              }}
             />
           </>
         )}
@@ -460,6 +492,18 @@ function App() {
       <UploadModal
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
+      />
+
+      <ExcelUploadModal
+        isOpen={showExcelModal}
+        onClose={() => setShowExcelModal(false)}
+        onPatientsImported={handleExcelImport}
+      />
+
+      <DualExcelUploadModal
+        isOpen={showDualExcelModal}
+        onClose={() => setShowDualExcelModal(false)}
+        onPatientsImported={handleDualExcelImport}
       />
     </div>
   );

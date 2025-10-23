@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, User, AlertTriangle, FileText, Plus } from 'lucide-react';
+import { X, Calendar, User, AlertTriangle, FileText, Plus, Database } from 'lucide-react';
 import { Patient, PatientNote, GestionType } from '../../types';
 import { useSupabase } from '../../hooks/useSupabase';
+import { usePatientGestion } from '../../hooks/usePatientsAPI';
 
 interface PatientDetailModalProps {
   patient: Patient | null;
@@ -14,12 +15,13 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<'details' | 'notes'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'notes' | 'gestion'>('details');
   const [notes, setNotes] = useState<PatientNote[]>([]);
   const [newNote, setNewNote] = useState('');
   const [noteType, setNoteType] = useState<GestionType>('general');
   const [loading, setLoading] = useState(false);
   const { getPatientNotes, createPatientNote } = useSupabase();
+  const { episodios, loading: gestionLoading, error: gestionError, total: totalEpisodios } = usePatientGestion(patient?.episodio_cmbd || patient?.id || '');
 
   useEffect(() => {
     if (patient && isOpen) {
@@ -91,7 +93,7 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
       <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
         <div className="flex justify-between items-center pb-4 border-b">
           <h2 className="text-xl font-semibold text-gray-900">
-            Detalles del Paciente: {patient.nombre} {patient.apellido_paterno}
+            Detalles del Paciente: {patient.nombre} {patient.apellido_paterno || ''}
           </h2>
           <button
             onClick={onClose}
@@ -124,6 +126,17 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
               >
                 Notas y Gestiones ({notes.length})
               </button>
+              <button
+                onClick={() => setActiveTab('gestion')}
+                className={`py-2 px-4 border-b-2 font-medium text-sm ${
+                  activeTab === 'gestion'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Database className="h-4 w-4 inline mr-1" />
+                Episodios CMBD ({totalEpisodios})
+              </button>
             </nav>
           </div>
 
@@ -137,9 +150,13 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                     <dd className="text-sm text-gray-900">{patient.rut}</dd>
                   </div>
                   <div>
+                    <dt className="text-sm font-medium text-gray-500">Episodio CMBD</dt>
+                    <dd className="text-sm text-gray-900 font-mono">{patient.episodio_cmbd || patient.id}</dd>
+                  </div>
+                  <div>
                     <dt className="text-sm font-medium text-gray-500">Nombre completo</dt>
                     <dd className="text-sm text-gray-900">
-                      {patient.nombre} {patient.apellido_paterno} {patient.apellido_materno}
+                      {patient.nombre} {patient.apellido_paterno || ''} {patient.apellido_materno || ''}
                     </dd>
                   </div>
                   <div>
@@ -158,7 +175,7 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                 <dl className="space-y-3">
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Servicio Clínico</dt>
-                    <dd className="text-sm text-gray-900">{patient.servicio_clinico}</dd>
+                    <dd className="text-sm text-gray-900">{patient.servicio || patient.servicio_clinico}</dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Fecha de Ingreso</dt>
@@ -166,7 +183,7 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Días Hospitalizado</dt>
-                    <dd className="text-sm text-gray-900">{patient.dias_hospitalizacion} días</dd>
+                    <dd className="text-sm text-gray-900">{patient.estancia || patient.dias_hospitalizacion || 0} días</dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Alta Estimada</dt>
@@ -180,27 +197,27 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="text-center">
                     <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRiskColor(patient.riesgo_social)}`}>
-                      Riesgo Social: {patient.riesgo_social.charAt(0).toUpperCase() + patient.riesgo_social.slice(1)}
+                      Riesgo Social: {patient.riesgo_social ? patient.riesgo_social.charAt(0).toUpperCase() + patient.riesgo_social.slice(1) : 'Sin información'}
                     </div>
                   </div>
                   <div className="text-center">
                     <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRiskColor(patient.riesgo_clinico)}`}>
-                      Riesgo Clínico: {patient.riesgo_clinico.charAt(0).toUpperCase() + patient.riesgo_clinico.slice(1)}
+                      Riesgo Clínico: {patient.riesgo_clinico ? patient.riesgo_clinico.charAt(0).toUpperCase() + patient.riesgo_clinico.slice(1) : 'Sin información'}
                     </div>
                   </div>
                   <div className="text-center">
                     <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRiskColor(patient.riesgo_administrativo)}`}>
-                      Riesgo Admin.: {patient.riesgo_administrativo.charAt(0).toUpperCase() + patient.riesgo_administrativo.slice(1)}
+                      Riesgo Admin.: {patient.riesgo_administrativo ? patient.riesgo_administrativo.charAt(0).toUpperCase() + patient.riesgo_administrativo.slice(1) : 'Sin información'}
                     </div>
                   </div>
                   <div className="text-center">
                     <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                      patient.nivel_riesgo_global === 'verde' ? 'bg-green-100 text-green-800' :
-                      patient.nivel_riesgo_global === 'amarillo' ? 'bg-yellow-100 text-yellow-800' :
+                      (patient.nivel_riesgo_global || patient.riesgo) === 'verde' ? 'bg-green-100 text-green-800' :
+                      (patient.nivel_riesgo_global || patient.riesgo) === 'amarillo' ? 'bg-yellow-100 text-yellow-800' :
                       'bg-red-100 text-red-800'
                     }`}>
-                      {patient.nivel_riesgo_global === 'rojo' && <AlertTriangle className="h-4 w-4 mr-1" />}
-                      Global: {patient.nivel_riesgo_global.charAt(0).toUpperCase() + patient.nivel_riesgo_global.slice(1)}
+                      {(patient.nivel_riesgo_global || patient.riesgo) === 'rojo' && <AlertTriangle className="h-4 w-4 mr-1" />}
+                      Global: {(patient.nivel_riesgo_global || patient.riesgo) ? (patient.nivel_riesgo_global || patient.riesgo).charAt(0).toUpperCase() + (patient.nivel_riesgo_global || patient.riesgo).slice(1) : 'Sin información'}
                     </div>
                   </div>
                 </div>
@@ -209,7 +226,7 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
               <div className="md:col-span-2">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Diagnóstico Principal</h3>
                 <p className="text-sm text-gray-700 bg-gray-50 p-4 rounded-lg">
-                  {patient.diagnostico_principal}
+                  {patient.diagnostico || patient.diagnostico_principal}
                 </p>
               </div>
             </div>
@@ -271,7 +288,7 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex items-center space-x-2">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getGestionTypeColor(note.tipo_gestion)}`}>
-                              {note.tipo_gestion.charAt(0).toUpperCase() + note.tipo_gestion.slice(1)}
+                              {note.tipo_gestion ? note.tipo_gestion.charAt(0).toUpperCase() + note.tipo_gestion.slice(1) : 'Sin tipo'}
                             </span>
                             <span className="text-sm font-medium text-gray-900">{note.user_name}</span>
                             <span className="text-sm text-gray-500">({note.user_role})</span>
@@ -291,6 +308,91 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'gestion' && (
+            <div className="mt-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Episodios de Gestión CMBD
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Historial completo de gestiones para el episodio {patient?.episodio_cmbd || patient?.id}
+                </p>
+              </div>
+
+              {gestionLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-sm text-gray-500">Cargando episodios...</p>
+                </div>
+              ) : gestionError ? (
+                <div className="text-center py-8">
+                  <AlertTriangle className="mx-auto h-8 w-8 text-red-400" />
+                  <p className="mt-2 text-sm text-red-600">Error al cargar episodios: {gestionError}</p>
+                </div>
+              ) : episodios.length > 0 ? (
+                <div className="space-y-4">
+                  {episodios.map((episodio, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                          <dt className="text-xs font-medium text-gray-500 uppercase">Última Modificación</dt>
+                          <dd className="text-sm text-gray-900">{episodio.ultimaModificacion}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-gray-500 uppercase">Gestión Solicitada</dt>
+                          <dd className="text-sm text-gray-900">{episodio.gestionSolicitada}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-gray-500 uppercase">Concretado</dt>
+                          <dd className={`text-sm font-medium ${episodio.concretado === 'SI' ? 'text-green-600' : 'text-red-600'}`}>
+                            {episodio.concretado}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-gray-500 uppercase">Fecha Admisión</dt>
+                          <dd className="text-sm text-gray-900">{episodio.fechaAdmision}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-gray-500 uppercase">Fecha Alta</dt>
+                          <dd className="text-sm text-gray-900">{episodio.fechaAlta}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-gray-500 uppercase">CAMA</dt>
+                          <dd className="text-sm text-gray-900 font-mono">{episodio.cama}</dd>
+                        </div>
+                        <div className="md:col-span-2 lg:col-span-3">
+                          <dt className="text-xs font-medium text-gray-500 uppercase">Diagnóstico Admisión</dt>
+                          <dd className="text-sm text-gray-900">{episodio.diagnosticoAdmision}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-gray-500 uppercase">Convenio</dt>
+                          <dd className="text-sm text-gray-900">{episodio.convenio}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-gray-500 uppercase">Aseguradora</dt>
+                          <dd className="text-sm text-gray-900">{episodio.nombreAseguradora}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-gray-500 uppercase">Valor Parcial</dt>
+                          <dd className="text-sm text-gray-900 font-mono">{episodio.valorParcial}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-gray-500 uppercase">Días Hospitalización</dt>
+                          <dd className="text-sm text-gray-900 font-mono">{episodio.diasHospitalizacion}</dd>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Database className="mx-auto h-8 w-8 text-gray-400" />
+                  <p className="mt-2 text-sm text-gray-500">No hay episodios de gestión registrados</p>
+                </div>
+              )}
             </div>
           )}
         </div>
