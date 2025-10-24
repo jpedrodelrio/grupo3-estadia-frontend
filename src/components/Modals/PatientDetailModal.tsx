@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, User, AlertTriangle, FileText, Plus } from 'lucide-react';
+// import { X, Calendar, User, AlertTriangle, FileText, Plus } from 'lucide-react';
+import { X, AlertTriangle, FileText, Plus } from 'lucide-react';
 import { Patient, PatientNote, GestionType } from '../../types';
 import { useSupabase } from '../../hooks/useSupabase';
 
