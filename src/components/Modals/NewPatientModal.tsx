@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { Patient, RiskLevel, GlobalRisk } from '../../types';
-import { useSupabase } from '../../hooks/useSupabase';
 
 interface NewPatientModalProps {
   isOpen: boolean;
@@ -15,7 +14,6 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
   onPatientCreated,
 }) => {
   const [loading, setLoading] = useState(false);
-  const { createPatient } = useSupabase();
   const [formData, setFormData] = useState({
     rut: '',
     nombre: '',
@@ -80,36 +78,57 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
       formData.riesgo_administrativo
     );
 
-    const patientData = {
-      ...formData,
-      edad: parseInt(formData.edad),
-      fecha_ingreso: fechaIngreso.toISOString(),
-      dias_hospitalizacion: diasHospitalizacion,
-      nivel_riesgo_global: nivelRiesgoGlobal,
-      estado: 'activo' as const,
-    };
+    const fechaNacimiento = new Date();
+    fechaNacimiento.setFullYear(fechaNacimiento.getFullYear() - parseInt(formData.edad));
 
-    const createdPatient = await createPatient(patientData);
+    const patientData: Patient = {
+      id: `patient_${Date.now()}`,
+      episodio: '',
+      rut: formData.rut,
+      nombre: formData.nombre,
+      apellido_paterno: formData.apellido_paterno,
+      apellido_materno: formData.apellido_materno,
+      fecha_de_nacimiento: fechaNacimiento.toISOString(),
+      edad: parseInt(formData.edad),
+      sexo: formData.sexo,
+      convenio: formData.prevision,
+      nombre_de_la_aseguradora: '',
+      ultima_cama: null,
+      fecha_ingreso: fechaIngreso.toISOString(),
+      fecha_estimada_alta: formData.fecha_estimada_alta,
+      dias_hospitalizacion: diasHospitalizacion,
+      valor_parcial_estadia: '',
+      diagnostico_principal: formData.diagnostico_principal,
+      tipo_cuenta_1: null,
+      tipo_cuenta_2: null,
+      tipo_cuenta_3: null,
+      riesgo_social: formData.riesgo_social,
+      riesgo_clinico: formData.riesgo_clinico,
+      riesgo_administrativo: formData.riesgo_administrativo,
+      nivel_riesgo_global: nivelRiesgoGlobal,
+      estado: 'activo',
+      prevision: formData.prevision,
+      created_at: fechaIngreso.toISOString(),
+      updated_at: fechaIngreso.toISOString(),
+    };
     
-    if (createdPatient) {
-      onPatientCreated(createdPatient);
-      onClose();
-      setFormData({
-        rut: '',
-        nombre: '',
-        apellido_paterno: '',
-        apellido_materno: '',
-        edad: '',
-        sexo: 'M',
-        servicio_clinico: '',
-        diagnostico_principal: '',
-        prevision: '',
-        riesgo_social: 'bajo',
-        riesgo_clinico: 'bajo',
-        riesgo_administrativo: 'bajo',
-        fecha_estimada_alta: '',
-      });
-    }
+    onPatientCreated(patientData);
+    onClose();
+    setFormData({
+      rut: '',
+      nombre: '',
+      apellido_paterno: '',
+      apellido_materno: '',
+      edad: '',
+      sexo: 'M',
+      servicio_clinico: '',
+      diagnostico_principal: '',
+      prevision: '',
+      riesgo_social: 'bajo',
+      riesgo_clinico: 'bajo',
+      riesgo_administrativo: 'bajo',
+      fecha_estimada_alta: '',
+    });
     
     setLoading(false);
   };

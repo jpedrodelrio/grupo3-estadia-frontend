@@ -1,39 +1,54 @@
 import React from 'react';
 import { Filter, Search } from 'lucide-react';
+import { Patient } from '../../types';
 
 interface FilterPanelProps {
   searchTerm: string;
   onSearchChange: (term: string) => void;
-  serviceFilter: string;
-  onServiceFilterChange: (service: string) => void;
+  convenienceFilter: string;
+  onConvenienceFilterChange: (convenience: string) => void;
   riskFilter: string;
   onRiskFilterChange: (risk: string) => void;
   statusFilter: string;
   onStatusFilterChange: (status: string) => void;
+  patients: Patient[];
+  gestionTypeFilter: string;
+  onGestionTypeFilterChange: (value: string) => void;
+  diagnosticoFilter: string;
+  onDiagnosticoFilterChange: (value: string) => void;
+  gestionTypes: string[];
+  diagnosticoOptions: string[];
 }
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
   searchTerm,
   onSearchChange,
-  serviceFilter,
-  onServiceFilterChange,
+  convenienceFilter,
+  onConvenienceFilterChange,
   riskFilter,
   onRiskFilterChange,
   statusFilter,
   onStatusFilterChange,
+  patients,
+  gestionTypeFilter,
+  onGestionTypeFilterChange,
+  diagnosticoFilter,
+  onDiagnosticoFilterChange,
+  gestionTypes,
+  diagnosticoOptions,
 }) => {
-  const services = [
-    'Medicina Interna',
-    'Cirugía',
-    'Cardiología',
-    'Neurología',
-    'Pediatría',
-    'Ginecología',
-    'Traumatología',
-    'Oncología',
-    'Urgencias',
-    'UCI',
-  ];
+  // Obtener ISAPREs únicas de los pacientes
+  const getUniqueISAPREs = () => {
+    const isapres = new Set<string>();
+    patients.forEach(patient => {
+      if (patient.nombre_de_la_aseguradora && patient.nombre_de_la_aseguradora !== '-') {
+        isapres.add(patient.nombre_de_la_aseguradora);
+      }
+    });
+    return Array.from(isapres).sort();
+  };
+
+  const availableISAPREs = getUniqueISAPREs();
 
   return (
     <div className="bg-white shadow-sm border border-gray-200 rounded-lg p-6 mb-6">
@@ -54,25 +69,57 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
               className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Nombre, RUT o diagnóstico..."
+              placeholder="Nombre, RUT, episodio o diagnóstico..."
             />
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Servicio Clínico
+            Isapre
           </label>
           <select
-            value={serviceFilter}
-            onChange={(e) => onServiceFilterChange(e.target.value)}
+            value={convenienceFilter}
+            onChange={(e) => onConvenienceFilterChange(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">Todos los servicios</option>
-            {services.map((service) => (
-              <option key={service} value={service}>
-                {service}
+            <option value="">Todos los Isapres</option>
+            {availableISAPREs.map((isapre) => (
+              <option key={isapre} value={isapre}>
+                {isapre}
               </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Tipo de Gestión
+          </label>
+          <select
+            value={gestionTypeFilter}
+            onChange={(e) => onGestionTypeFilterChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Todas las gestiones</option>
+            {gestionTypes.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Diagnóstico
+          </label>
+          <select
+            value={diagnosticoFilter}
+            onChange={(e) => onDiagnosticoFilterChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Todos los diagnósticos</option>
+            {diagnosticoOptions.map((d) => (
+              <option key={d} value={d}>{d}</option>
             ))}
           </select>
         </div>

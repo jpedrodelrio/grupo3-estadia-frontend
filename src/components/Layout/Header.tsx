@@ -13,15 +13,25 @@ export const Header: React.FC<HeaderProps> = ({ onOpenUploadModal, onOpenNewPati
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <img 
+            <div className="flex items-center space-x-4">
+              {/* <img 
                 src="/image copy.png" 
-                alt="Red de Salud UC Christus" 
-                className="h-10 w-auto"
-              />
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Red de Salud UC</h1>
-                <p className="text-sm text-gray-500">Gestión de Estadía</p>
+                alt="Universidad Católica de Chile" 
+                className="h-12 w-auto"
+              /> */}
+              <div className="flex flex-col">
+                {/* Red de Salud en gris oscuro */}
+                <span className="text-sm font-medium text-gray-600 leading-tight">
+                  Red de Salud
+                </span>
+                {/* Línea divisoria */}
+                <div className="h-px bg-gray-600 w-full my-0.5"></div>
+                {/* UC en azul y CHRISTUS en morado */}
+                <span className="text-base font-bold leading-tight">
+                  <span className="text-blue-600">UC</span>
+                  <span className="text-gray-600"> • </span>
+                  <span className="text-purple-600">CHRISTUS</span>
+                </span>
               </div>
             </div>
           </div>

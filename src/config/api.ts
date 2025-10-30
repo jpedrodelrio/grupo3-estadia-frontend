@@ -8,6 +8,8 @@ interface ApiConfig {
   camasIngestEndpoint: string;
   processXlsmEndpoint: string;
   downloadCsvEndpoint: string;
+  personasResumenEndpoint: string;
+  gestionesEpisodiosEndpoint: string;
 }
 
 export interface FileTypeConfig {
@@ -35,6 +37,8 @@ export const getApiConfig = (): ApiConfig => {
       camasIngestEndpoint: '/api/camas/ingest/csv',
       processXlsmEndpoint: '/process-xlsm',
       downloadCsvEndpoint: '/api/download-csv',
+      personasResumenEndpoint: '/api/gestion/personas/resumen',
+      gestionesEpisodiosEndpoint: '/api/gestion/episodios/resumen',
     };
   } else {
     // Configuración para producción
@@ -44,6 +48,8 @@ export const getApiConfig = (): ApiConfig => {
       camasIngestEndpoint: '/camas/ingest/csv',
       processXlsmEndpoint: import.meta.env.VITE_API_PROCESS_XLSM_ENDPOINT || '/process-xlsm',
       downloadCsvEndpoint: import.meta.env.VITE_API_DOWNLOAD_CSV_ENDPOINT || '/api/download-csv',
+      personasResumenEndpoint: '/gestion/personas/resumen',
+      gestionesEpisodiosEndpoint: '/gestion/episodios/resumen',
     };
   }
 };
@@ -97,6 +103,14 @@ export const apiUrls = {
   camasIngest: () => buildApiUrl(getApiConfig().camasIngestEndpoint),
   processXlsm: () => buildApiUrl(getApiConfig().processXlsmEndpoint),
   downloadCsv: (filename: string) => buildApiUrl(`${getApiConfig().downloadCsvEndpoint}/${filename}`),
+  personasResumen: (page: number = 1, limit: number = 20) => {
+    const baseUrl = buildApiUrl(getApiConfig().personasResumenEndpoint);
+    return `${baseUrl}?page=${page}&limit=${limit}`;
+  },
+  gestionesEpisodios: (episodio: string) => {
+    const baseUrl = buildApiUrl(getApiConfig().gestionesEpisodiosEndpoint);
+    return `${baseUrl}?episodio=${episodio}`;
+  },
   // URL dinámica basada en tipo de archivo
   uploadByType: (fileTypeId: string) => {
     const config = getFileTypeConfig(fileTypeId);
