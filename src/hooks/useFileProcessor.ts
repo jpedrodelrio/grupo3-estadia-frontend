@@ -3,6 +3,8 @@ import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { apiUrls, getFileTypeConfig } from '../config/api';
 
+
+
 export interface FileProcessingState {
   currentStep: 'upload' | 'processing' | 'preview' | 'sending' | 'success' | 'error';
   selectedFile: File | null;

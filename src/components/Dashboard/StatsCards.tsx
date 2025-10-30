@@ -16,35 +16,36 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ patients }) => {
   );
   const highRiskPatients = patients.filter(p => p.nivel_riesgo_global === 'rojo').length;
   const pendingDischarge = patients.filter(p => p.estado === 'alta_pendiente').length;
+  const totalPatients = patients.length;
 
   const stats = [
     {
-      title: 'Pacientes Activos',
-      value: activePatients.toString(),
+      title: 'Total Pacientes',
+      value: totalPatients.toString(),
       icon: Users,
       color: 'blue',
-      change: '+2.5%'
+      subtitle: `${activePatients} activos`
     },
     {
       title: 'Estadía Promedio',
       value: `${avgStayDays} días`,
       icon: Clock,
       color: 'green',
-      change: '-0.8%'
+      subtitle: 'Pacientes activos'
     },
     {
       title: 'Alto Riesgo',
       value: highRiskPatients.toString(),
       icon: AlertTriangle,
       color: 'red',
-      change: '+1.2%'
+      subtitle: `${totalPatients > 0 ? Math.round((highRiskPatients / totalPatients) * 100) : 0}% del total`
     },
     {
       title: 'Altas Pendientes',
       value: pendingDischarge.toString(),
       icon: TrendingUp,
       color: 'orange',
-      change: '+5.4%'
+      subtitle: 'Requieren gestión'
     }
   ];
 
@@ -70,14 +71,8 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ patients }) => {
               </div>
               <div className="ml-4 flex-1">
                 <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                <div className="flex items-baseline">
-                  <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
-                  <span className={`ml-2 text-sm font-medium ${
-                    stat.change.startsWith('+') ? 'text-red-600' : 'text-green-600'
-                  }`}>
-                    {stat.change}
-                  </span>
-                </div>
+                <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
+                <p className="text-xs text-gray-500 mt-1">{stat.subtitle}</p>
               </div>
             </div>
           </div>

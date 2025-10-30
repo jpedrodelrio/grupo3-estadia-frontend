@@ -1,13 +1,47 @@
-import React from 'react';
-import { Eye, Calendar, AlertCircle, User } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Eye, Calendar, AlertCircle, User, RefreshCw, Database, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Patient } from '../../types';
 
 interface PatientTableProps {
   patients: Patient[];
   onViewPatient: (patient: Patient) => void;
+  loading?: boolean;
 }
 
-export const PatientTable: React.FC<PatientTableProps> = ({ patients, onViewPatient }) => {
+const PATIENTS_PER_PAGE = 50;
+
+export const PatientTable: React.FC<PatientTableProps> = ({ 
+  patients, 
+  onViewPatient,
+  loading = false,
+}) => {
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Calcular paginación local
+  const totalPages = Math.ceil(patients.length / PATIENTS_PER_PAGE);
+  const startIndex = (currentPage - 1) * PATIENTS_PER_PAGE;
+  const endIndex = startIndex + PATIENTS_PER_PAGE;
+  const paginatedPatients = useMemo(() => {
+    return patients.slice(startIndex, endIndex);
+  }, [patients, startIndex, endIndex]);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const getCurrentRange = () => {
+    const start = startIndex + 1;
+    const end = Math.min(endIndex, patients.length);
+    return `${start}-${end} de ${patients.length}`;
+  };
   const getRiskBadgeColor = (risk: string) => {
     switch (risk) {
       case 'verde': return 'bg-green-100 text-green-800';
@@ -38,13 +72,65 @@ export const PatientTable: React.FC<PatientTableProps> = ({ patients, onViewPati
     return diffDays;
   };
 
+  const handleRefresh = () => {
+    console.log('Todos los datos ya están cargados en memoria');
+  };
+
   return (
     <div className="bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">Pacientes Hospitalizados</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Lista completa de pacientes con seguimiento de estadía
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Pacientes Hospitalizados</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Lista completa de pacientes con seguimiento de estadía
+            </p>
+            {patients.length > 0 && (
+              <div className="mt-2 flex items-center text-sm text-blue-600">
+                <Database className="h-4 w-4 mr-1" />
+                <span>{patients.length} pacientes totales</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              Actualizar
+            </button>
+          </div>
+        </div>
+        
+        {/* Controles de paginación local */}
+        {patients.length > PATIENTS_PER_PAGE && (
+          <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
+            <div className="flex items-center text-sm text-gray-700">
+              <span>Mostrando {getCurrentRange()}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-sm text-gray-700">
+                Página {currentPage} de {totalPages}
+              </span>
+              <button
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+                className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -52,13 +138,19 @@ export const PatientTable: React.FC<PatientTableProps> = ({ patients, onViewPati
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Episodio
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Paciente
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Servicio Clínico
+                Fecha de Admisión
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Días Hospitalizado
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Convenio-Isapre
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Alta Estimada
@@ -75,11 +167,19 @@ export const PatientTable: React.FC<PatientTableProps> = ({ patients, onViewPati
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {patients.map((patient) => {
+            {paginatedPatients.map((patient) => {
               const daysToDischarge = getDaysUntilDischarge(patient.fecha_estimada_alta);
               
               return (
                 <tr key={patient.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900 font-mono">
+                      {patient.id}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      ID del episodio
+                    </div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
@@ -98,8 +198,12 @@ export const PatientTable: React.FC<PatientTableProps> = ({ patients, onViewPati
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{patient.servicio_clinico}</div>
-                    <div className="text-sm text-gray-500">{patient.prevision}</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {formatDate(patient.fecha_ingreso)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Ingreso al hospital
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -108,6 +212,10 @@ export const PatientTable: React.FC<PatientTableProps> = ({ patients, onViewPati
                         {patient.dias_hospitalizacion} días
                       </span>
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{patient.convenio || 'No disponible'}</div>
+                    <div className="text-sm text-gray-500">{patient.nombre_de_la_aseguradora || 'No disponible'}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
@@ -155,6 +263,8 @@ export const PatientTable: React.FC<PatientTableProps> = ({ patients, onViewPati
           </p>
         </div>
       )}
+      
+      {/* Paginación removida - todos los datos se cargan de una vez */}
     </div>
   );
 };
