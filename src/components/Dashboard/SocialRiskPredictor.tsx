@@ -8,7 +8,7 @@ interface SocialRiskPredictorProps {
 
 export const SocialRiskPredictor: React.FC<SocialRiskPredictorProps> = ({ patients }) => {
   const [predictions, setPredictions] = useState<SocialRiskPrediction[]>([]);
-  const [selectedPatient, setSelectedPatient] = useState<string>('');
+  // const [selectedPatient, setSelectedPatient] = useState<string>('');
 
   // Simulación del sistema de predicción de riesgo social
   const calculateSocialRisk = (patient: Patient): SocialRiskPrediction => {

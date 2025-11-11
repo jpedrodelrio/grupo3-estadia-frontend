@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from './components/Layout/Header';
 import { StatsCards } from './components/Dashboard/StatsCards';
 import { OperationalDashboard } from './components/Dashboard/OperationalDashboard';
@@ -11,13 +11,12 @@ import { PatientDetailModal } from './components/Modals/PatientDetailModal';
 import { NewPatientModal } from './components/Modals/NewPatientModal';
 import { UploadModal } from './components/Modals/UploadModal';
 import { Patient, Task } from './types';
-import { useSupabase } from './hooks/useSupabase';
+import { usePatients } from './hooks/usePatients';
+import { useGestionesResumen } from './hooks/useGestionesResumen';
 
 function App() {
-  const [patients, setPatients] = useState<Patient[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
-  const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<'dashboard' | 'patients' | 'tasks' | 'predictions'>('dashboard');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [showPatientModal, setShowPatientModal] = useState(false);
@@ -26,168 +25,41 @@ function App() {
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
-  const [serviceFilter, setServiceFilter] = useState('');
+  const [convenienceFilter, setConvenienceFilter] = useState('');
   const [riskFilter, setRiskFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [gestionTypeFilter, setGestionTypeFilter] = useState('');
+  const [diagnosticoFilter, setDiagnosticoFilter] = useState('');
 
-  const { getPatients } = useSupabase();
+  // Hook pacientes
+  const {
+    patients,
+    loading,
+    addPatient,
+    getPatientStats,
+  } = usePatients();
+
+  // Hook gestiones
+  const {
+    episodios,
+    loading: gestionesLoading,
+    fetchAllGestiones,
+    getRegistrosByEpisodio,
+    gestionTypes,
+    diagnosticoOptions,
+  } = useGestionesResumen();
 
   useEffect(() => {
-    loadPatients();
     loadSampleTasks();
   }, []);
 
   useEffect(() => {
-    applyFilters();
-  }, [patients, searchTerm, serviceFilter, riskFilter, statusFilter]);
+    fetchAllGestiones();
+  }, [fetchAllGestiones]);
 
-  const loadPatients = async () => {
-    setLoading(true);
-    const patientsData = await getPatients();
-    
-    // If no data from Supabase, use sample data
-    if (patientsData.length === 0) {
-      const samplePatients: Patient[] = [
-        {
-          id: '1',
-          rut: '12.345.678-9',
-          nombre: 'María',
-          apellido_paterno: 'González',
-          apellido_materno: 'López',
-          edad: 65,
-          sexo: 'F',
-          servicio_clinico: 'Medicina Interna',
-          fecha_ingreso: '2025-01-01T08:00:00Z',
-          fecha_estimada_alta: '2025-01-15T12:00:00Z',
-          dias_hospitalizacion: 13,
-          diagnostico_principal: 'Neumonía adquirida en la comunidad con insuficiencia respiratoria aguda',
-          riesgo_social: 'alto',
-          riesgo_clinico: 'medio',
-          riesgo_administrativo: 'bajo',
-          nivel_riesgo_global: 'rojo',
-          estado: 'activo',
-          prevision: 'FONASA A',
-          created_at: '2025-01-01T08:00:00Z',
-          updated_at: '2025-01-13T10:30:00Z',
-        },
-        {
-          id: '2',
-          rut: '98.765.432-1',
-          nombre: 'Pedro',
-          apellido_paterno: 'Martínez',
-          apellido_materno: 'Silva',
-          edad: 58,
-          sexo: 'M',
-          servicio_clinico: 'Cardiología',
-          fecha_ingreso: '2025-01-05T14:00:00Z',
-          fecha_estimada_alta: '2025-01-18T10:00:00Z',
-          dias_hospitalizacion: 9,
-          diagnostico_principal: 'Infarto agudo del miocardio con elevación del segmento ST',
-          riesgo_social: 'medio',
-          riesgo_clinico: 'alto',
-          riesgo_administrativo: 'medio',
-          nivel_riesgo_global: 'rojo',
-          estado: 'activo',
-          prevision: 'ISAPRE',
-          created_at: '2025-01-05T14:00:00Z',
-          updated_at: '2025-01-13T16:20:00Z',
-        },
-        {
-          id: '3',
-          rut: '15.678.234-5',
-          nombre: 'Ana',
-          apellido_paterno: 'López',
-          apellido_materno: 'Hernández',
-          edad: 42,
-          sexo: 'F',
-          servicio_clinico: 'Cirugía',
-          fecha_ingreso: '2025-01-08T09:30:00Z',
-          fecha_estimada_alta: '2025-01-16T14:00:00Z',
-          dias_hospitalizacion: 6,
-          diagnostico_principal: 'Apendicitis aguda complicada con peritonitis localizada',
-          riesgo_social: 'bajo',
-          riesgo_clinico: 'bajo',
-          riesgo_administrativo: 'alto',
-          nivel_riesgo_global: 'amarillo',
-          estado: 'alta_pendiente',
-          prevision: 'FONASA C',
-          created_at: '2025-01-08T09:30:00Z',
-          updated_at: '2025-01-13T11:45:00Z',
-        },
-        {
-          id: '4',
-          rut: '87.654.321-9',
-          nombre: 'Carlos',
-          apellido_paterno: 'Ramírez',
-          apellido_materno: 'Torres',
-          edad: 73,
-          sexo: 'M',
-          servicio_clinico: 'UCI',
-          fecha_ingreso: '2024-12-28T20:15:00Z',
-          fecha_estimada_alta: '2025-01-20T08:00:00Z',
-          dias_hospitalizacion: 17,
-          diagnostico_principal: 'Shock séptico secundario a infección intraabdominal',
-          riesgo_social: 'medio',
-          riesgo_clinico: 'alto',
-          riesgo_administrativo: 'medio',
-          nivel_riesgo_global: 'rojo',
-          estado: 'activo',
-          prevision: 'FONASA B',
-          created_at: '2024-12-28T20:15:00Z',
-          updated_at: '2025-01-13T18:00:00Z',
-        },
-        {
-          id: '5',
-          rut: '45.123.678-2',
-          nombre: 'Luisa',
-          apellido_paterno: 'Morales',
-          apellido_materno: 'Castillo',
-          edad: 34,
-          sexo: 'F',
-          servicio_clinico: 'Ginecología',
-          fecha_ingreso: '2025-01-10T11:00:00Z',
-          fecha_estimada_alta: '2025-01-14T16:00:00Z',
-          dias_hospitalizacion: 4,
-          diagnostico_principal: 'Parto por cesárea sin complicaciones',
-          riesgo_social: 'bajo',
-          riesgo_clinico: 'bajo',
-          riesgo_administrativo: 'bajo',
-          nivel_riesgo_global: 'verde',
-          estado: 'activo',
-          prevision: 'ISAPRE',
-          created_at: '2025-01-10T11:00:00Z',
-          updated_at: '2025-01-13T09:30:00Z',
-        },
-        {
-          id: '6',
-          rut: '23.456.789-0',
-          nombre: 'Roberto',
-          apellido_paterno: 'Vásquez',
-          apellido_materno: 'Mendoza',
-          edad: 67,
-          sexo: 'M',
-          servicio_clinico: 'Traumatología',
-          fecha_ingreso: '2025-01-07T16:45:00Z',
-          fecha_estimada_alta: '2025-01-17T12:00:00Z',
-          dias_hospitalizacion: 7,
-          diagnostico_principal: 'Fractura de cadera izquierda con artroplastia total',
-          riesgo_social: 'alto',
-          riesgo_clinico: 'medio',
-          riesgo_administrativo: 'bajo',
-          nivel_riesgo_global: 'amarillo',
-          estado: 'activo',
-          prevision: 'FONASA D',
-          created_at: '2025-01-07T16:45:00Z',
-          updated_at: '2025-01-13T14:15:00Z',
-        },
-      ];
-      setPatients(samplePatients);
-    } else {
-      setPatients(patientsData);
-    }
-    
-    setLoading(false);
-  };
+  useEffect(() => {
+    applyFilters();
+  }, [patients, searchTerm, convenienceFilter, riskFilter, statusFilter, gestionTypeFilter, diagnosticoFilter, episodios]);
 
   const loadSampleTasks = () => {
     // Datos de ejemplo para tareas
@@ -263,13 +135,33 @@ function App() {
         patient.apellido_paterno.toLowerCase().includes(searchLower) ||
         patient.apellido_materno.toLowerCase().includes(searchLower) ||
         patient.rut.includes(searchTerm) ||
+        patient.episodio.includes(searchTerm) ||
         patient.diagnostico_principal.toLowerCase().includes(searchLower)
       );
     }
 
-    // Service filter
-    if (serviceFilter) {
-      filtered = filtered.filter(patient => patient.servicio_clinico === serviceFilter);
+    // ISAPRE (aseguradora)
+    if (convenienceFilter) {
+      filtered = filtered.filter(patient => {
+        const aseguradora = patient.nombre_de_la_aseguradora?.toUpperCase() || '';
+        return aseguradora.includes(convenienceFilter.toUpperCase());
+      });
+    }
+
+    // Gestión - por episodio
+    if (gestionTypeFilter) {
+      filtered = filtered.filter(patient => {
+        const registros = getRegistrosByEpisodio(patient.episodio);
+        return registros.some(r => r.que_gestion_se_solicito === gestionTypeFilter);
+      });
+    }
+
+    // Diagnóstico desde episodios
+    if (diagnosticoFilter) {
+      filtered = filtered.filter(patient => {
+        const registros = getRegistrosByEpisodio(patient.episodio);
+        return registros.some(r => r.texto_libre_diagnostico_admision === diagnosticoFilter);
+      });
     }
 
     // Risk filter
@@ -291,7 +183,7 @@ function App() {
   };
 
   const handlePatientCreated = (newPatient: Patient) => {
-    setPatients([newPatient, ...patients]);
+    addPatient(newPatient);
   };
 
   const handleCreateTask = (newTask: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
@@ -312,9 +204,9 @@ function App() {
     ));
   };
 
-  const alertCount = patients.filter(p => p.nivel_riesgo_global === 'rojo').length;
+  const alertCount = getPatientStats().riesgoRojo;
 
-  if (loading) {
+  if (loading || gestionesLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -406,27 +298,32 @@ function App() {
 
             <StatsCards patients={patients} />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-              <div className="lg:col-span-2">
-                <FilterPanel
-                  searchTerm={searchTerm}
-                  onSearchChange={setSearchTerm}
-                  serviceFilter={serviceFilter}
-                  onServiceFilterChange={setServiceFilter}
-                  riskFilter={riskFilter}
-                  onRiskFilterChange={setRiskFilter}
-                  statusFilter={statusFilter}
-                  onStatusFilterChange={setStatusFilter}
-                />
-              </div>
-              <div>
-                <AlertsPanel />
-              </div>
+            <FilterPanel
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              convenienceFilter={convenienceFilter}
+              onConvenienceFilterChange={setConvenienceFilter}
+              riskFilter={riskFilter}
+              onRiskFilterChange={setRiskFilter}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+              patients={patients}
+              gestionTypeFilter={gestionTypeFilter}
+              onGestionTypeFilterChange={setGestionTypeFilter}
+              diagnosticoFilter={diagnosticoFilter}
+              onDiagnosticoFilterChange={setDiagnosticoFilter}
+              gestionTypes={gestionTypes}
+              diagnosticoOptions={diagnosticoOptions}
+            />
+
+            <div className="mb-6">
+              <AlertsPanel />
             </div>
 
             <PatientTable
               patients={filteredPatients}
               onViewPatient={handleViewPatient}
+              loading={loading}
             />
           </>
         )}
