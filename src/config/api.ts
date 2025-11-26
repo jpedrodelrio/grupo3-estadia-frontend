@@ -111,6 +111,17 @@ export const apiUrls = {
     const baseUrl = buildApiUrl(getApiConfig().gestionesEpisodiosEndpoint);
     return `${baseUrl}?episodio=${episodio}`;
   },
+  gestoras: () => {
+    const isDev = import.meta.env.DEV;
+    if (isDev) {
+      // En desarrollo, usar el proxy de Vite
+      return '/api/tareas/gestoras';
+    } else {
+      // En producción, usar la URL completa
+      const config = getApiConfig();
+      return `${config.baseUrl}/tareas/gestoras`;
+    }
+  },
   // URL dinámica basada en tipo de archivo
   uploadByType: (fileTypeId: string) => {
     const config = getFileTypeConfig(fileTypeId);
