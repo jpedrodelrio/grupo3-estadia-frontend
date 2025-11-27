@@ -449,7 +449,7 @@ export const useFileProcessor = (): FileProcessingState & FileProcessorActions =
         setUploadMessage('Error al procesar el archivo. Por favor, verifique que el archivo no esté corrupto.');
       }
     }
-  }, [processXlsmFile, processFile]);
+  }, [processXlsmFile, processFile, selectedFileType]);
 
   const downloadGeneratedCSV = useCallback(() => {
     if (!csvData) return;
@@ -544,7 +544,7 @@ export const useFileProcessor = (): FileProcessingState & FileProcessorActions =
       
       setUploadMessage(`Error al enviar el archivo: ${errorMessage}`);
     }
-  }, [csvData, selectedFile]);
+  }, [csvData, selectedFile, selectedFileType]);
 
   const clearFileOnly = useCallback(() => {
     setSelectedFile(null);
