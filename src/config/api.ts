@@ -106,9 +106,13 @@ export const apiUrls = {
   camasIngest: () => buildApiUrl(getApiConfig().camasIngestEndpoint),
   processXlsm: () => buildApiUrl(getApiConfig().processXlsmEndpoint),
   downloadCsv: (filename: string) => buildApiUrl(`${getApiConfig().downloadCsvEndpoint}/${filename}`),
-  personasResumen: (page: number = 1, limit: number = 20) => {
+  personasResumen: (page: number = 1, limit: number = 20, search?: string) => {
     const baseUrl = buildApiUrl(getApiConfig().personasResumenEndpoint);
-    return `${baseUrl}?page=${page}&limit=${limit}`;
+    let url = `${baseUrl}?page=${page}&limit=${limit}`;
+    if (search && search.trim() !== '') {
+      url += `&search=${encodeURIComponent(search.trim())}`;
+    }
+    return url;
   },
   gestionesEpisodios: (episodio: string) => {
     const baseUrl = buildApiUrl(getApiConfig().gestionesEpisodiosEndpoint);
@@ -122,6 +126,64 @@ export const apiUrls = {
   deleteGestion: (episodio: string, registroId: string) => {
     const baseUrl = buildApiUrl(getApiConfig().gestionEstadiasEndpoint);
     return `${baseUrl}/${episodio}/${registroId}`;
+  gestoras: () => {
+    const isDev = import.meta.env.DEV;
+    if (isDev) {
+      // En desarrollo, usar el proxy de Vite
+      return '/api/tareas/gestoras';
+    } else {
+      // En producción, usar la URL completa
+      const config = getApiConfig();
+      return `${config.baseUrl}/tareas/gestoras`;
+    }
+  },
+  tareas: (filters?: {
+    status?: string;
+    prioridad?: string;
+    gestor?: string;
+    tipo?: string;
+    paciente_episodio?: string;
+    limit?: number;
+    skip?: number;
+  }) => {
+    const isDev = import.meta.env.DEV;
+    let baseUrl: string;
+    if (isDev) {
+      // En desarrollo, usar el proxy de Vite
+      baseUrl = '/api/tareas';
+    } else {
+      // En producción, usar la URL completa
+      const config = getApiConfig();
+      baseUrl = `${config.baseUrl}/tareas`;
+    }
+    
+    // Agregar parámetros de filtro si existen
+    if (filters) {
+      const params = new URLSearchParams();
+      if (filters.status) params.append('status', filters.status);
+      if (filters.prioridad) params.append('prioridad', filters.prioridad);
+      if (filters.gestor) params.append('gestor', filters.gestor);
+      if (filters.tipo) params.append('tipo', filters.tipo);
+      if (filters.paciente_episodio) params.append('paciente_episodio', filters.paciente_episodio);
+      if (filters.limit) params.append('limit', filters.limit.toString());
+      if (filters.skip) params.append('skip', filters.skip.toString());
+      
+      const queryString = params.toString();
+      if (queryString) {
+        return `${baseUrl}?${queryString}`;
+      }
+    }
+    
+    return baseUrl;
+  },
+  tareaById: (taskId: string) => {
+    const isDev = import.meta.env.DEV;
+    if (isDev) {
+      return `/api/tareas/${taskId}`;
+    } else {
+      const config = getApiConfig();
+      return `${config.baseUrl}/tareas/${taskId}`;
+    }
   },
   // URL dinámica basada en tipo de archivo
   uploadByType: (fileTypeId: string) => {
