@@ -52,4 +52,5 @@ export type {
   GestionesEpisodio,
   GestionesResumenResponse,
   UseGestionesState,
+  CreateGestionData,
 } from './gestion';

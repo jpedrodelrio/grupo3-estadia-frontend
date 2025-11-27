@@ -10,6 +10,7 @@ interface ApiConfig {
   downloadCsvEndpoint: string;
   personasResumenEndpoint: string;
   gestionesEpisodiosEndpoint: string;
+  gestionEstadiasEndpoint: string;
 }
 
 export interface FileTypeConfig {
@@ -39,6 +40,7 @@ export const getApiConfig = (): ApiConfig => {
       downloadCsvEndpoint: '/api/download-csv',
       personasResumenEndpoint: '/api/gestion/personas/resumen',
       gestionesEpisodiosEndpoint: '/api/gestion/episodios/resumen',
+      gestionEstadiasEndpoint: '/api/gestion/estadias',
     };
   } else {
     // Configuración para producción
@@ -50,6 +52,7 @@ export const getApiConfig = (): ApiConfig => {
       downloadCsvEndpoint: import.meta.env.VITE_API_DOWNLOAD_CSV_ENDPOINT || '/api/download-csv',
       personasResumenEndpoint: '/gestion/personas/resumen',
       gestionesEpisodiosEndpoint: '/gestion/episodios/resumen',
+      gestionEstadiasEndpoint: '/gestion/estadias',
     };
   }
 };
@@ -115,6 +118,14 @@ export const apiUrls = {
     const baseUrl = buildApiUrl(getApiConfig().gestionesEpisodiosEndpoint);
     return `${baseUrl}?episodio=${episodio}`;
   },
+  createGestion: () => buildApiUrl(getApiConfig().gestionEstadiasEndpoint),
+  updateGestion: (episodio: string, registroId: string) => {
+    const baseUrl = buildApiUrl(getApiConfig().gestionEstadiasEndpoint);
+    return `${baseUrl}/${episodio}/${registroId}`;
+  },
+  deleteGestion: (episodio: string, registroId: string) => {
+    const baseUrl = buildApiUrl(getApiConfig().gestionEstadiasEndpoint);
+    return `${baseUrl}/${episodio}/${registroId}`;
   gestoras: () => {
     const isDev = import.meta.env.DEV;
     if (isDev) {
