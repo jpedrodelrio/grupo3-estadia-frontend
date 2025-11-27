@@ -2,6 +2,36 @@ import { useState, useCallback } from 'react';
 import { Task } from '../types';
 import { apiUrls } from '../config/api';
 
+/**
+ * Mapea el status del frontend al formato que espera el backend
+ * El backend podría esperar valores diferentes (ej: "completado" vs "completada", "en progreso" vs "en_progreso")
+ */
+const mapStatusToBackend = (status: string): string => {
+  const statusMap: Record<string, string> = {
+    'pendiente': 'pendiente',
+    'en_progreso': 'en progreso', // El backend podría esperar "en progreso" (con espacio) en lugar de "en_progreso"
+    'completada': 'completado', // El backend podría esperar "completado" (masculino)
+    'cancelada': 'cancelada',
+  };
+  return statusMap[status] || status;
+};
+
+/**
+ * Mapea el status del backend al formato del frontend
+ */
+const mapStatusFromBackend = (status: string): string => {
+  const statusMap: Record<string, string> = {
+    'pendiente': 'pendiente',
+    'en_progreso': 'en_progreso',
+    'en progreso': 'en_progreso', // Convertir "en progreso" del backend a "en_progreso" del frontend
+    'en-progreso': 'en_progreso', // Convertir "en-progreso" del backend a "en_progreso" del frontend
+    'completado': 'completada', // Convertir "completado" del backend a "completada" del frontend
+    'completada': 'completada',
+    'cancelada': 'cancelada',
+  };
+  return statusMap[status] || status;
+};
+
 export interface CreateTaskRequest {
   paciente_episodio: string;
   gestor: string;
@@ -52,13 +82,13 @@ export const useTasks = (): UseTasksReturn => {
       console.log('🔄 Creando tarea en:', url, task);
       
       // Preparar el body, solo incluyendo campos que tienen valor
-      const body: any = {
+      const body: Record<string, unknown> = {
         paciente_episodio: task.paciente_episodio,
         gestor: task.gestor,
         tipo: task.tipo,
         prioridad: task.prioridad,
         titulo: task.titulo,
-        status: task.status,
+        status: mapStatusToBackend(task.status), // Mapear status al formato del backend
       };
 
       // Agregar campos opcionales solo si tienen valor
@@ -108,7 +138,7 @@ export const useTasks = (): UseTasksReturn => {
       let newTask: Task;
       try {
         newTask = JSON.parse(text);
-      } catch (parseError) {
+      } catch {
         throw new Error('Error: El servidor devolvió una respuesta inválida');
       }
 
@@ -133,24 +163,71 @@ export const useTasks = (): UseTasksReturn => {
       console.log('🔄 Actualizando tarea en:', url, updates);
 
       // Preparar el body con solo los campos que se están actualizando
-      const body: any = {};
+      const body: Record<string, unknown> = {};
 
-      if (updates.paciente_episodio !== undefined) body.paciente_episodio = updates.paciente_episodio;
-      if (updates.gestor !== undefined) body.gestor = updates.gestor;
-      if (updates.tipo !== undefined) body.tipo = updates.tipo;
-      if (updates.prioridad !== undefined) body.prioridad = updates.prioridad;
-      if (updates.titulo !== undefined) body.titulo = updates.titulo;
-      if (updates.status !== undefined) body.status = updates.status;
-      if (updates.rol !== undefined) body.rol = updates.rol;
-      if (updates.descripcion !== undefined) body.descripcion = updates.descripcion;
-      if (updates.fecha_inicio !== undefined && updates.fecha_inicio) {
-        const fechaInicio = new Date(updates.fecha_inicio);
-        body.fecha_inicio = fechaInicio.toISOString();
+      // Campos requeridos/opcionales - solo incluir si tienen valor
+      if (updates.paciente_episodio !== undefined && updates.paciente_episodio !== '') {
+        body.paciente_episodio = updates.paciente_episodio;
       }
-      if (updates.fecha_vencimiento !== undefined && updates.fecha_vencimiento) {
-        const fechaVencimiento = new Date(updates.fecha_vencimiento);
-        body.fecha_vencimiento = fechaVencimiento.toISOString();
+      if (updates.gestor !== undefined && updates.gestor !== '') {
+        body.gestor = updates.gestor;
       }
+      if (updates.tipo !== undefined) {
+        body.tipo = updates.tipo;
+      }
+      if (updates.prioridad !== undefined) {
+        body.prioridad = updates.prioridad;
+      }
+      if (updates.titulo !== undefined && updates.titulo !== '') {
+        body.titulo = updates.titulo;
+      }
+      if (updates.status !== undefined) {
+        // Mapear el status al formato que espera el backend
+        const mappedStatus = mapStatusToBackend(updates.status);
+        body.status = mappedStatus;
+        console.log('🔄 Mapeo de status:', { original: updates.status, mapeado: mappedStatus });
+      }
+      if (updates.rol !== undefined && updates.rol !== '') {
+        body.rol = updates.rol;
+      }
+      if (updates.descripcion !== undefined && updates.descripcion !== '') {
+        body.descripcion = updates.descripcion;
+      }
+      
+      // Manejar fechas: convertir a ISO o null si están vacías
+      if (updates.fecha_inicio !== undefined) {
+        if (updates.fecha_inicio && updates.fecha_inicio.trim() !== '') {
+          try {
+            const fechaInicio = new Date(updates.fecha_inicio);
+            if (!isNaN(fechaInicio.getTime())) {
+              body.fecha_inicio = fechaInicio.toISOString();
+            }
+          } catch (e) {
+            console.warn('Error al convertir fecha_inicio:', e);
+          }
+        } else {
+          // Si está vacío, enviar null para limpiar el campo
+          body.fecha_inicio = null;
+        }
+      }
+      
+      if (updates.fecha_vencimiento !== undefined) {
+        if (updates.fecha_vencimiento && updates.fecha_vencimiento.trim() !== '') {
+          try {
+            const fechaVencimiento = new Date(updates.fecha_vencimiento);
+            if (!isNaN(fechaVencimiento.getTime())) {
+              body.fecha_vencimiento = fechaVencimiento.toISOString();
+            }
+          } catch (e) {
+            console.warn('Error al convertir fecha_vencimiento:', e);
+          }
+        } else {
+          // Si está vacío, enviar null para limpiar el campo
+          body.fecha_vencimiento = null;
+        }
+      }
+      
+      console.log('📤 Body de actualización:', JSON.stringify(body, null, 2));
 
       const response = await fetch(url, {
         method: 'PUT', // O PATCH, dependiendo de lo que use el backend
@@ -170,8 +247,18 @@ export const useTasks = (): UseTasksReturn => {
         try {
           const errorData = JSON.parse(text);
           errorMessage = errorData.message || errorData.error || errorMessage;
+          // Log detallado del error para debugging
+          if (response.status === 422) {
+            console.error('❌ Detalles del error 422 al actualizar tarea:', {
+              status: response.status,
+              statusText: response.statusText,
+              errorData,
+              bodyEnviado: body,
+            });
+          }
         } catch {
           // Si no se puede parsear, usar el mensaje por defecto
+          console.error('❌ Error - Respuesta no parseable:', text);
         }
         throw new Error(errorMessage);
       }
@@ -179,7 +266,11 @@ export const useTasks = (): UseTasksReturn => {
       let updatedTask: Task;
       try {
         updatedTask = JSON.parse(text);
-      } catch (parseError) {
+        // Mapear el status del backend al formato del frontend
+        if (updatedTask.status) {
+          updatedTask.status = mapStatusFromBackend(updatedTask.status) as Task['status'];
+        }
+      } catch {
         throw new Error('Error: El servidor devolvió una respuesta inválida');
       }
 
@@ -231,7 +322,12 @@ export const useTasks = (): UseTasksReturn => {
         // El endpoint puede devolver un array directamente o un objeto con results
         const parsed = JSON.parse(text);
         tasksData = Array.isArray(parsed) ? parsed : (parsed.results || parsed.tasks || []);
-      } catch (parseError) {
+        // Mapear el status de cada tarea del backend al formato del frontend
+        tasksData = tasksData.map(task => ({
+          ...task,
+          status: mapStatusFromBackend(task.status) as Task['status'],
+        }));
+      } catch {
         throw new Error('Error: El servidor devolvió una respuesta inválida');
       }
 
@@ -284,7 +380,7 @@ export const useTasks = (): UseTasksReturn => {
       let task: Task;
       try {
         task = JSON.parse(text);
-      } catch (parseError) {
+      } catch {
         throw new Error('Error: El servidor devolvió una respuesta inválida');
       }
 

@@ -8,16 +8,75 @@ interface OperationalDashboardProps {
 }
 
 export const OperationalDashboard: React.FC<OperationalDashboardProps> = ({ patients, tasks }) => {
+
   const activePatients = patients.filter(p => p.estado === 'activo');
-  const pendingTasks = tasks.filter(t => t.estado === 'pendiente');
+  const pendingTasks = tasks.filter(t => t.status === 'pendiente' || t.status === 'en_progreso');
+  
+  // Tareas vencidas: tienen fecha_vencimiento y están vencidas
   const overdueTasks = tasks.filter(t => {
+    if (!t.fecha_vencimiento || t.status === 'completada' || t.status === 'cancelada') {
+      return false;
+    }
     const dueDate = new Date(t.fecha_vencimiento);
-    return t.estado === 'pendiente' && dueDate < new Date();
+    return dueDate < new Date();
   });
+  
+  // Tareas críticas: prioridad crítica o alta, o vencidas
+  const criticalTasks = tasks
+    .filter(t => {
+      // Incluir tareas con prioridad crítica o alta
+      if (t.prioridad === 'critica' || t.prioridad === 'alta') {
+        return t.status !== 'completada' && t.status !== 'cancelada';
+      }
+      // Incluir tareas vencidas
+      if (t.fecha_vencimiento) {
+        const dueDate = new Date(t.fecha_vencimiento);
+        if (dueDate < new Date() && t.status !== 'completada' && t.status !== 'cancelada') {
+          return true;
+        }
+      }
+      return false;
+    })
+    .sort((a, b) => {
+      // Ordenar por: 1) Prioridad crítica primero, 2) Vencidas, 3) Prioridad alta
+      const priorityOrder = { critica: 0, alta: 1, media: 2, baja: 3 };
+      const aPriority = priorityOrder[a.prioridad] ?? 3;
+      const bPriority = priorityOrder[b.prioridad] ?? 3;
+      
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // Si tienen la misma prioridad, ordenar por fecha de vencimiento (más cercanas primero)
+      if (a.fecha_vencimiento && b.fecha_vencimiento) {
+        return new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime();
+      }
+      if (a.fecha_vencimiento) return -1;
+      if (b.fecha_vencimiento) return 1;
+      return 0;
+    });
+  
+  // Tareas completadas hoy: verificar que tengan status completada y updated_at de hoy
   const completedToday = tasks.filter(t => {
-    const today = new Date().toDateString();
-    const completedDate = new Date(t.updated_at).toDateString();
-    return t.estado === 'completada' && completedDate === today;
+    // Verificar que la tarea esté completada
+    if (t.status !== 'completada') {
+      return false;
+    }
+    
+    // Verificar que tenga updated_at
+    if (!t.updated_at) {
+      return false;
+    }
+    
+    try {
+      const today = new Date().toDateString();
+      const completedDate = new Date(t.updated_at).toDateString();
+      const isToday = completedDate === today;
+      return isToday;
+    } catch (error) {
+      console.warn('Error al procesar fecha de tarea:', t.id, error);
+      return false;
+    }
   });
 
   const avgStayDays = Math.round(
@@ -55,7 +114,7 @@ export const OperationalDashboard: React.FC<OperationalDashboardProps> = ({ pati
       value: completedToday.length,
       icon: CheckCircle,
       color: 'purple',
-      subtitle: 'Gestiones finalizadas'
+      subtitle: 'Gestiones/tareas finalizadas'
     }
   ];
 
@@ -159,40 +218,86 @@ export const OperationalDashboard: React.FC<OperationalDashboardProps> = ({ pati
 
         {/* Tareas Críticas */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Tareas Críticas</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Tareas Críticas ({criticalTasks.length})
+          </h3>
           <div className="space-y-3">
-            {overdueTasks.slice(0, 5).map((task) => (
-              <div key={task.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-red-800">{task.titulo}</p>
-                  <p className="text-xs text-red-600">
-                    Vencida: {new Date(task.fecha_vencimiento).toLocaleDateString('es-CL')}
-                  </p>
+            {criticalTasks.slice(0, 8).map((task) => {
+              const isOverdue = task.fecha_vencimiento && new Date(task.fecha_vencimiento) < new Date();
+              const isCritical = task.prioridad === 'critica';
+              const isHigh = task.prioridad === 'alta';
+              
+              // Determinar el estilo según la urgencia
+              const bgColor = isOverdue || isCritical 
+                ? 'bg-red-50 border-red-200' 
+                : isHigh 
+                ? 'bg-orange-50 border-orange-200' 
+                : 'bg-yellow-50 border-yellow-200';
+              
+              const textColor = isOverdue || isCritical 
+                ? 'text-red-800' 
+                : isHigh 
+                ? 'text-orange-800' 
+                : 'text-yellow-800';
+              
+              const subtitleColor = isOverdue || isCritical 
+                ? 'text-red-600' 
+                : isHigh 
+                ? 'text-orange-600' 
+                : 'text-yellow-600';
+              
+              const iconColor = isOverdue || isCritical 
+                ? 'text-red-600' 
+                : isHigh 
+                ? 'text-orange-600' 
+                : 'text-yellow-600';
+              
+              return (
+                <div key={task.id} className={`flex items-center justify-between p-3 rounded-lg border ${bgColor}`}>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className={`text-sm font-medium ${textColor}`}>{task.titulo}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded ${isCritical ? 'bg-red-200 text-red-800' : isHigh ? 'bg-orange-200 text-orange-800' : 'bg-yellow-200 text-yellow-800'}`}>
+                        {task.prioridad.charAt(0).toUpperCase() + task.prioridad.slice(1)}
+                      </span>
+                    </div>
+                    <p className={`text-xs ${subtitleColor}`}>
+                      {isOverdue 
+                        ? `Vencida: ${new Date(task.fecha_vencimiento!).toLocaleDateString('es-CL')}`
+                        : task.fecha_vencimiento 
+                        ? `Vence: ${new Date(task.fecha_vencimiento).toLocaleDateString('es-CL')}`
+                        : task.status === 'en_progreso'
+                        ? 'En progreso'
+                        : 'Pendiente'}
+                    </p>
+                    {task.gestor && (
+                      <p className="text-xs text-gray-500 mt-1">Gestor: {task.gestor}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center">
+                    {isOverdue || isCritical ? (
+                      <AlertTriangle className={`h-4 w-4 ${iconColor}`} />
+                    ) : (
+                      <Clock className={`h-4 w-4 ${iconColor}`} />
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                </div>
-              </div>
-            ))}
+              );
+            })}
             
-            {pendingTasks.filter(t => !overdueTasks.includes(t)).slice(0, 3).map((task) => (
-              <div key={task.id} className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-yellow-800">{task.titulo}</p>
-                  <p className="text-xs text-yellow-600">
-                    Vence: {new Date(task.fecha_vencimiento).toLocaleDateString('es-CL')}
-                  </p>
-                </div>
-                <div className="flex items-center">
-                  <Clock className="h-4 w-4 text-yellow-600" />
-                </div>
-              </div>
-            ))}
-            
-            {pendingTasks.length === 0 && overdueTasks.length === 0 && (
+            {criticalTasks.length === 0 && (
               <div className="text-center py-4">
                 <CheckCircle className="mx-auto h-8 w-8 text-green-500 mb-2" />
-                <p className="text-sm text-gray-500">Todas las tareas están al día</p>
+                <p className="text-sm text-gray-500">No hay tareas críticas</p>
+                <p className="text-xs text-gray-400 mt-1">Todas las tareas están bajo control</p>
+              </div>
+            )}
+            
+            {criticalTasks.length > 8 && (
+              <div className="text-center pt-2">
+                <p className="text-xs text-gray-500">
+                  Mostrando 8 de {criticalTasks.length} tareas críticas
+                </p>
               </div>
             )}
           </div>
