@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Layout/Header';
 import { StatsCards } from './components/Dashboard/StatsCards';
 import { OperationalDashboard } from './components/Dashboard/OperationalDashboard';
 import { TaskManagement } from './components/Dashboard/TaskManagement';
-import { SocialRiskPredictor } from './components/Dashboard/SocialRiskPredictor';
+// Ocultado temporalmente
+// import { SocialRiskPredictor } from './components/Dashboard/SocialRiskPredictor';
 import { AlertsPanel } from './components/Dashboard/AlertsPanel';
 import { FilterPanel } from './components/Dashboard/FilterPanel';
 import { PatientTable } from './components/Dashboard/PatientTable';
@@ -13,7 +14,7 @@ import { UploadModal } from './components/Modals/UploadModal';
 import { Patient, Task } from './types';
 import { usePatients } from './hooks/usePatients';
 import { useGestionesResumen } from './hooks/useGestionesResumen';
-import { useTasks } from './hooks/useTasks';
+import { useTasks, TaskFilters } from './hooks/useTasks';
 
 function App() {
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
@@ -58,13 +59,19 @@ function App() {
     deleteTask: deleteTaskAPI,
     loading: tasksLoading,
     error: tasksError,
-    refreshTasks,
   } = useTasks();
 
-  // Cargar tareas al montar el componente
+  // Ref para evitar cargar tareas múltiples veces
+  const hasLoadedTasksRef = useRef(false);
+
+  // Cargar tareas solo una vez al montar el componente
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+    if (!hasLoadedTasksRef.current) {
+      hasLoadedTasksRef.current = true;
+      fetchTasks();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Array vacío para ejecutar solo una vez
 
   useEffect(() => {
     fetchAllGestiones();
@@ -137,7 +144,7 @@ function App() {
     addPatient(newPatient);
   };
 
-  const handleCreateTask = async (newTask: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
+  const handleCreateTask = async (newTask: Omit<Task, 'id' | 'created_at' | 'updated_at'>): Promise<Task | null> => {
     // Llamar al API para crear la tarea
     const createdTask = await createTaskAPI({
       paciente_episodio: newTask.paciente_episodio,
@@ -153,11 +160,13 @@ function App() {
     });
 
     if (createdTask) {
-      // Recargar las tareas desde el API
-      await refreshTasks();
+      // Recargar TODAS las tareas sin filtros para que aparezcan en el dashboard
+      await fetchTasks();
+      return createdTask;
     } else {
       // Si hay error, se maneja en el hook useTasks
       console.error('Error al crear tarea:', tasksError);
+      return null;
     }
   };
 
@@ -177,31 +186,33 @@ function App() {
     });
 
     if (updatedTask) {
-      // Recargar las tareas desde el API
-      await refreshTasks();
+      // Recargar TODAS las tareas sin filtros para que se actualicen en el dashboard
+      await fetchTasks();
     } else {
       // Si hay error, se maneja en el hook useTasks
       console.error('Error al actualizar tarea:', tasksError);
     }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
-    // Confirmar antes de eliminar
-    if (!window.confirm('¿Estás seguro de que deseas eliminar esta tarea?')) {
-      return;
-    }
-
+  const handleDeleteTask = async (taskId: string): Promise<boolean> => {
     // Llamar al API para eliminar la tarea
     const deleted = await deleteTaskAPI(taskId);
 
     if (deleted) {
-      // Recargar las tareas desde el API
-      await refreshTasks();
+      // Recargar TODAS las tareas sin filtros para que se actualicen en el dashboard
+      await fetchTasks();
+      return true;
     } else {
       // Si hay error, se maneja en el hook useTasks
       console.error('Error al eliminar tarea:', tasksError);
+      return false;
     }
   };
+
+  // Memoizar la función de cambio de filtros para evitar loops
+  const handleFiltersChange = useCallback(async (filters: TaskFilters) => {
+    await fetchTasks(filters);
+  }, [fetchTasks]);
 
   const alertCount = getPatientStats().riesgoRojo;
 
@@ -259,7 +270,8 @@ function App() {
             >
               Coordinación de Equipos
             </button>
-            <button
+            {/* Ocultado temporalmente */}
+            {/* <button
               onClick={() => setActiveView('predictions')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeView === 'predictions'
@@ -268,7 +280,7 @@ function App() {
               }`}
             >
               Predicción de Riesgo Social
-            </button>
+            </button> */}
           </nav>
         </div>
       </div>
@@ -334,14 +346,15 @@ function App() {
             onCreateTask={handleCreateTask}
             onUpdateTask={handleUpdateTask}
             onDeleteTask={handleDeleteTask}
-            onFiltersChange={fetchTasks}
+            onFiltersChange={handleFiltersChange}
             loading={tasksLoading}
           />
         )}
 
-        {activeView === 'predictions' && (
+        {/* Ocultado temporalmente */}
+        {/* {activeView === 'predictions' && (
           <SocialRiskPredictor patients={patients} />
-        )}
+        )} */}
       </main>
 
       <PatientDetailModal

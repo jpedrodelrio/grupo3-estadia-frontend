@@ -2,6 +2,9 @@
  * Configuración de la aplicación basada en variables de entorno
  */
 
+import { TaskFilters } from '../hooks/useTasks';
+import { buildUrlWithParams } from '../utils/queryParams';
+
 interface ApiConfig {
   baseUrl: string;
   ingestEndpoint: string;
@@ -11,6 +14,8 @@ interface ApiConfig {
   personasResumenEndpoint: string;
   gestionesEpisodiosEndpoint: string;
   gestionEstadiasEndpoint: string;
+  gestorasEndpoint: string;
+  tareasEndpoint: string;
 }
 
 export interface FileTypeConfig {
@@ -41,6 +46,8 @@ export const getApiConfig = (): ApiConfig => {
       personasResumenEndpoint: '/api/gestion/personas/resumen',
       gestionesEpisodiosEndpoint: '/api/gestion/episodios/resumen',
       gestionEstadiasEndpoint: '/api/gestion/estadias',
+      gestorasEndpoint: '/api/tareas/gestoras',
+      tareasEndpoint: '/api/tareas',
     };
   } else {
     // Configuración para producción
@@ -53,6 +60,8 @@ export const getApiConfig = (): ApiConfig => {
       personasResumenEndpoint: '/gestion/personas/resumen',
       gestionesEpisodiosEndpoint: '/gestion/episodios/resumen',
       gestionEstadiasEndpoint: '/gestion/estadias',
+      gestorasEndpoint: '/tareas/gestoras',
+      tareasEndpoint: '/tareas',
     };
   }
 };
@@ -126,64 +135,32 @@ export const apiUrls = {
   deleteGestion: (episodio: string, registroId: string) => {
     const baseUrl = buildApiUrl(getApiConfig().gestionEstadiasEndpoint);
     return `${baseUrl}/${episodio}/${registroId}`;
-  gestoras: () => {
-    const isDev = import.meta.env.DEV;
-    if (isDev) {
-      // En desarrollo, usar el proxy de Vite
-      return '/api/tareas/gestoras';
-    } else {
-      // En producción, usar la URL completa
-      const config = getApiConfig();
-      return `${config.baseUrl}/tareas/gestoras`;
-    }
   },
-  tareas: (filters?: {
-    status?: string;
-    prioridad?: string;
-    gestor?: string;
-    tipo?: string;
-    paciente_episodio?: string;
-    limit?: number;
-    skip?: number;
-  }) => {
-    const isDev = import.meta.env.DEV;
-    let baseUrl: string;
-    if (isDev) {
-      // En desarrollo, usar el proxy de Vite
-      baseUrl = '/api/tareas';
-    } else {
-      // En producción, usar la URL completa
-      const config = getApiConfig();
-      baseUrl = `${config.baseUrl}/tareas`;
+    
+  gestoras: () => {
+    return buildApiUrl(getApiConfig().gestorasEndpoint);
+  },
+  tareas: (filters?: TaskFilters) => {
+    const baseUrl = buildApiUrl(getApiConfig().tareasEndpoint);
+    
+    if (!filters) {
+      return baseUrl;
     }
     
-    // Agregar parámetros de filtro si existen
-    if (filters) {
-      const params = new URLSearchParams();
-      if (filters.status) params.append('status', filters.status);
-      if (filters.prioridad) params.append('prioridad', filters.prioridad);
-      if (filters.gestor) params.append('gestor', filters.gestor);
-      if (filters.tipo) params.append('tipo', filters.tipo);
-      if (filters.paciente_episodio) params.append('paciente_episodio', filters.paciente_episodio);
-      if (filters.limit) params.append('limit', filters.limit.toString());
-      if (filters.skip) params.append('skip', filters.skip.toString());
-      
-      const queryString = params.toString();
-      if (queryString) {
-        return `${baseUrl}?${queryString}`;
-      }
-    }
-    
-    return baseUrl;
+    // Construir parámetros usando el helper
+    return buildUrlWithParams(baseUrl, {
+      status: filters.status,
+      prioridad: filters.prioridad,
+      gestor: filters.gestor,
+      tipo: filters.tipo,
+      paciente_episodio: filters.paciente_episodio,
+      limit: filters.limit,
+      skip: filters.skip,
+    });
   },
   tareaById: (taskId: string) => {
-    const isDev = import.meta.env.DEV;
-    if (isDev) {
-      return `/api/tareas/${taskId}`;
-    } else {
-      const config = getApiConfig();
-      return `${config.baseUrl}/tareas/${taskId}`;
-    }
+    const baseUrl = buildApiUrl(getApiConfig().tareasEndpoint);
+    return `${baseUrl}/${taskId}`;
   },
   // URL dinámica basada en tipo de archivo
   uploadByType: (fileTypeId: string) => {

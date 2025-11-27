@@ -44,7 +44,7 @@ export const useGestoras = (): UseGestorasReturn => {
       let data: Gestora[];
       try {
         data = JSON.parse(text);
-      } catch (parseError) {
+      } catch {
         throw new Error('Error: El servidor devolvió una respuesta inválida');
       }
       
@@ -91,7 +91,7 @@ export const useGestoras = (): UseGestorasReturn => {
       let newGestora: Gestora;
       try {
         newGestora = JSON.parse(text);
-      } catch (parseError) {
+      } catch {
         throw new Error('Error: El servidor devolvió una respuesta inválida');
       }
       

@@ -10,6 +10,8 @@ export interface ApiConfig {
   personasResumenEndpoint: string;
   gestionesEpisodiosEndpoint: string;
   gestionEstadiasEndpoint: string;
+    gestorasEndpoint: string;
+    tareasEndpoint: string;
 }
 
 export const getApiConfig = (): ApiConfig => {
@@ -23,6 +25,8 @@ export const getApiConfig = (): ApiConfig => {
       personasResumenEndpoint: '/api/gestion/personas/resumen',
       gestionesEpisodiosEndpoint: '/api/gestion/episodios/resumen',
       gestionEstadiasEndpoint: '/api/gestion/estadias',
+      gestorasEndpoint: '/api/tareas/gestoras',
+      tareasEndpoint: '/api/tareas',
     };
   }
 
@@ -35,6 +39,8 @@ export const getApiConfig = (): ApiConfig => {
     personasResumenEndpoint: '/gestion/personas/resumen',
     gestionesEpisodiosEndpoint: '/gestion/episodios/resumen',
     gestionEstadiasEndpoint: '/gestion/estadias',
+    gestorasEndpoint: '/api/tareas/gestoras',
+    tareasEndpoint: '/api/tareas',
   };
 };
 

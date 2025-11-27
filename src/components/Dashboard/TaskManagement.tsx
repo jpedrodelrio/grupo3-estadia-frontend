@@ -4,6 +4,8 @@ import { Task, Patient, PersonaResumen, PersonasResumenResponse } from '../../ty
 import { useGestoras } from '../../hooks/useGestoras';
 import { apiUrls } from '../../config/api';
 import { PatientService } from '../../services/PatientService';
+import { NotificationModal, NotificationType } from '../UI/NotificationModal';
+import { ConfirmModal } from '../UI/ConfirmModal';
 
 interface TaskFilters {
   status?: 'pendiente' | 'en_progreso' | 'completada' | 'cancelada';
@@ -16,9 +18,9 @@ interface TaskFilters {
 interface TaskManagementProps {
   tasks: Task[];
   patients: Patient[];
-  onCreateTask: (task: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  onCreateTask: (task: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => Promise<Task | null>;
   onUpdateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
-  onDeleteTask: (taskId: string) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<boolean>;
   onFiltersChange: (filters: TaskFilters) => Promise<void>;
   loading?: boolean;
 }
@@ -39,6 +41,30 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
   const [creatingTask, setCreatingTask] = useState(false);
   const [updatingTask, setUpdatingTask] = useState(false);
   const { gestoras, createGestora, loading: gestorasLoading, error: gestorasError } = useGestoras();
+  
+  // Estados para notificaciones
+  const [notification, setNotification] = useState<{
+    isOpen: boolean;
+    type: NotificationType;
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
+
+  // Estado para modal de confirmación de eliminación
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    taskId: string | null;
+    taskTitulo: string;
+  }>({
+    isOpen: false,
+    taskId: null,
+    taskTitulo: '',
+  });
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterPrioridad, setFilterPrioridad] = useState<string>('');
   const [filterRole, setFilterRole] = useState<string>('');
@@ -77,8 +103,17 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
     };
   }, []);
 
+  // Ref para rastrear si es la primera carga
+  const isInitialMount = useRef(true);
+
   // Aplicar filtros llamando al endpoint cuando cambien
   useEffect(() => {
+    // En el primer montaje, no hacer nada (las tareas ya se cargaron en App.tsx)
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
     const filters: TaskFilters = {};
     if (filterStatus) filters.status = filterStatus as any;
     if (filterPrioridad) filters.prioridad = filterPrioridad as any;
@@ -132,12 +167,34 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
     
     setCreatingTask(true);
     try {
-      await onCreateTask({
+      const createdTask = await onCreateTask({
         ...newTask,
       });
-      handleCloseNewTaskForm();
+      
+      if (createdTask) {
+        handleCloseNewTaskForm();
+        setNotification({
+          isOpen: true,
+          type: 'success',
+          title: 'Tarea creada exitosamente',
+          message: `La tarea "${newTask.titulo}" ha sido creada correctamente.`,
+        });
+      } else {
+        setNotification({
+          isOpen: true,
+          type: 'error',
+          title: 'Error al crear tarea',
+          message: 'No se pudo crear la tarea. Por favor, intenta nuevamente.',
+        });
+      }
     } catch (error) {
       console.error('Error al crear tarea:', error);
+      setNotification({
+        isOpen: true,
+        type: 'error',
+        title: 'Error al crear tarea',
+        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado al crear la tarea.',
+      });
     } finally {
       setCreatingTask(false);
     }
@@ -155,21 +212,46 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
 
     setUpdatingTask(true);
     try {
-      await onUpdateTask(editingTask.id, {
+      // Preparar los datos de actualización, manejando campos vacíos correctamente
+      const updates: any = {
         paciente_episodio: episodio,
         gestor: gestor,
-        rol: editingTask.rol || (editingTask as any).assigned_role || '',
         tipo: editingTask.tipo || (editingTask as any).tipo_tarea || 'general',
         prioridad: editingTask.prioridad || 'media',
         titulo: editingTask.titulo,
-        descripcion: editingTask.descripcion || '',
-        fecha_inicio: editingTask.fecha_inicio || '',
-        fecha_vencimiento: editingTask.fecha_vencimiento || '',
         status: getTaskStatus(editingTask),
-      });
+      };
+
+      // Solo incluir campos opcionales si tienen valor
+      if (editingTask.rol || (editingTask as any).assigned_role) {
+        updates.rol = editingTask.rol || (editingTask as any).assigned_role;
+      }
+      if (editingTask.descripcion) {
+        updates.descripcion = editingTask.descripcion;
+      }
+      if (editingTask.fecha_inicio) {
+        updates.fecha_inicio = editingTask.fecha_inicio;
+      }
+      if (editingTask.fecha_vencimiento) {
+        updates.fecha_vencimiento = editingTask.fecha_vencimiento;
+      }
+
+      await onUpdateTask(editingTask.id, updates);
       setEditingTask(null);
+      setNotification({
+        isOpen: true,
+        type: 'success',
+        title: 'Tarea actualizada exitosamente',
+        message: `La tarea "${editingTask.titulo}" ha sido actualizada correctamente.`,
+      });
     } catch (error) {
       console.error('Error al actualizar tarea:', error);
+      setNotification({
+        isOpen: true,
+        type: 'error',
+        title: 'Error al actualizar tarea',
+        message: error instanceof Error ? error.message : 'No se pudo actualizar la tarea. Por favor, intenta nuevamente.',
+      });
     } finally {
       setUpdatingTask(false);
     }
@@ -177,6 +259,63 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
 
   const handleCancelEdit = () => {
     setEditingTask(null);
+  };
+
+  const handleDeleteTaskClick = (taskId: string, taskTitulo: string) => {
+    // Mostrar modal de confirmación
+    setDeleteConfirm({
+      isOpen: true,
+      taskId,
+      taskTitulo,
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirm.taskId) return;
+
+    const taskId = deleteConfirm.taskId;
+    const taskTitulo = deleteConfirm.taskTitulo;
+
+    // Cerrar modal de confirmación
+    setDeleteConfirm({
+      isOpen: false,
+      taskId: null,
+      taskTitulo: '',
+    });
+
+    try {
+      const deleted = await onDeleteTask(taskId);
+      if (deleted) {
+        setNotification({
+          isOpen: true,
+          type: 'success',
+          title: 'Tarea eliminada exitosamente',
+          message: `La tarea "${taskTitulo}" ha sido eliminada correctamente.`,
+        });
+      } else {
+        setNotification({
+          isOpen: true,
+          type: 'error',
+          title: 'Error al eliminar tarea',
+          message: `No se pudo eliminar la tarea "${taskTitulo}". Por favor, intenta nuevamente.`,
+        });
+      }
+    } catch (error) {
+      setNotification({
+        isOpen: true,
+        type: 'error',
+        title: 'Error al eliminar tarea',
+        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado al eliminar la tarea.',
+      });
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteConfirm({
+      isOpen: false,
+      taskId: null,
+      taskTitulo: '',
+    });
   };
 
   const handleCloseNewTaskForm = () => {
@@ -200,10 +339,32 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
   const handleCreateGestora = async () => {
     if (!newGestoraName.trim()) return;
     
-    const created = await createGestora(newGestoraName.trim());
-    if (created) {
-      setNewGestoraName('');
-      setShowNewGestoraForm(false);
+    try {
+      const created = await createGestora(newGestoraName.trim());
+      if (created) {
+        setNewGestoraName('');
+        setShowNewGestoraForm(false);
+        setNotification({
+          isOpen: true,
+          type: 'success',
+          title: 'Gestor/a creado exitosamente',
+          message: `El gestor/a "${newGestoraName.trim()}" ha sido creado correctamente.`,
+        });
+      } else {
+        setNotification({
+          isOpen: true,
+          type: 'error',
+          title: 'Error al crear gestor/a',
+          message: gestorasError || 'No se pudo crear el gestor/a. Por favor, intenta nuevamente.',
+        });
+      }
+    } catch (error) {
+      setNotification({
+        isOpen: true,
+        type: 'error',
+        title: 'Error al crear gestor/a',
+        message: error instanceof Error ? error.message : 'Ocurrió un error inesperado al crear el gestor/a.',
+      });
     }
   };
 
@@ -217,7 +378,7 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
     return patient ? `${patient.nombre} ${patient.apellido_paterno}` : 'Paciente no encontrado';
   };
 
-  // Buscar pacientes desde el endpoint cuando el usuario escribe
+  // Buscar pacientes: primero en la lista local, luego en el API si es necesario
   useEffect(() => {
     // Limpiar timeout anterior
     if (searchTimeoutRef.current) {
@@ -235,8 +396,30 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
     setSearchingPatients(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const url = apiUrls.personasResumen(1, 50, episodioSearch);
-        console.log('🔍 Buscando pacientes:', { searchTerm: episodioSearch, url });
+        const searchLower = episodioSearch.toLowerCase();
+        
+        // Primero buscar en los pacientes ya cargados localmente
+        const localResults = patients.filter((p: Patient) => {
+          const nombreCompleto = `${p.nombre} ${p.apellido_paterno} ${p.apellido_materno}`.toLowerCase();
+          return (
+            p.episodio?.toLowerCase().includes(searchLower) ||
+            nombreCompleto.includes(searchLower) ||
+            p.rut?.toLowerCase().includes(searchLower) ||
+            p.diagnostico_principal?.toLowerCase().includes(searchLower)
+          );
+        }).slice(0, 10);
+
+        // Si encontramos suficientes resultados localmente, usarlos
+        if (localResults.length >= 10) {
+          console.log('✅ Resultados de búsqueda local:', localResults.length);
+          setSearchResults(localResults);
+          setSearchingPatients(false);
+          return;
+        }
+
+        // Si no hay suficientes resultados locales, buscar en el API con un límite mayor
+        const url = apiUrls.personasResumen(1, 1000, episodioSearch);
+        console.log('🔍 Buscando pacientes en API:', { searchTerm: episodioSearch, url });
         
         const response = await fetch(url, {
           method: 'GET',
@@ -253,7 +436,6 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
         const personas: PersonaResumen[] = data.results || [];
         
         // Filtrar por RUT, episodio o nombre (el nombre completo está en persona.nombre)
-        const searchLower = episodioSearch.toLowerCase();
         const filteredPersonas = personas.filter((p: PersonaResumen) => {
           return (
             p.episodio?.toLowerCase().includes(searchLower) ||
@@ -263,13 +445,34 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
         }).slice(0, 10); // Limitar a 10 resultados
 
         // Convertir PersonaResumen a Patient usando el servicio
-        const results: Patient[] = PatientService.convertPersonasToPatients(filteredPersonas);
+        const apiResults: Patient[] = PatientService.convertPersonasToPatients(filteredPersonas);
 
-        console.log('✅ Resultados de búsqueda:', results.length);
-        setSearchResults(results);
+        // Combinar resultados locales y del API, eliminando duplicados
+        const combinedResults = [...localResults];
+        apiResults.forEach(apiPatient => {
+          if (!combinedResults.find(p => p.episodio === apiPatient.episodio)) {
+            combinedResults.push(apiPatient);
+          }
+        });
+
+        console.log('✅ Resultados de búsqueda combinados:', combinedResults.length, {
+          locales: localResults.length,
+          api: apiResults.length
+        });
+        setSearchResults(combinedResults.slice(0, 10));
       } catch (err) {
         console.error('❌ Error al buscar pacientes:', err);
-        setSearchResults([]);
+        // En caso de error, usar solo los resultados locales si existen
+        const searchLower = episodioSearch.toLowerCase();
+        const localResults = patients.filter((p: Patient) => {
+          const nombreCompleto = `${p.nombre} ${p.apellido_paterno} ${p.apellido_materno}`.toLowerCase();
+          return (
+            p.episodio?.toLowerCase().includes(searchLower) ||
+            nombreCompleto.includes(searchLower) ||
+            p.rut?.toLowerCase().includes(searchLower)
+          );
+        }).slice(0, 10);
+        setSearchResults(localResults);
       } finally {
         setSearchingPatients(false);
       }
@@ -281,7 +484,7 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [episodioSearch]);
+  }, [episodioSearch, patients]);
 
   // Usar los resultados de la búsqueda en lugar del filtrado local
   const filteredPatientsForSearch = useMemo(() => {
@@ -331,7 +534,7 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
             className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
           >
             <Users className="h-4 w-4 mr-2" />
-            Crear Gestora
+            Crear Gestor/a
           </button>
           <button
             onClick={() => setShowNewTaskForm(true)}
@@ -451,7 +654,7 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
                       </div>
                       <div className="flex items-center">
                         <User className="h-4 w-4 mr-1" />
-                        <span>Gestor: {getTaskGestor(task)}{task.rol && ` (${task.rol})`}</span>
+                        <span>Gestor/a: {getTaskGestor(task)}{task.rol && ` (${task.rol})`}</span>
                       </div>
                       {task.fecha_vencimiento && (
                         <div className="flex items-center">
@@ -467,7 +670,7 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
                   <div className="flex items-center space-x-2">
                     {isOverdue && <AlertTriangle className="h-5 w-5 text-red-500" />}
                     <button
-                      onClick={() => onDeleteTask(task.id)}
+                      onClick={() => handleDeleteTaskClick(task.id, task.titulo || 'Sin título')}
                       className="px-3 py-1 text-sm border border-red-300 text-red-700 rounded-md hover:bg-red-50 transition-colors flex items-center"
                       title="Eliminar tarea"
                     >
@@ -903,7 +1106,7 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-md shadow-lg rounded-md bg-white">
             <div className="flex justify-between items-center pb-4 border-b">
-              <h3 className="text-xl font-semibold text-gray-900">Crear Nueva Gestora</h3>
+              <h3 className="text-xl font-semibold text-gray-900">Crear Gestor/a</h3>
               <button
                 onClick={handleCloseNewGestoraForm}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -920,7 +1123,7 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
               )}
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la Gestora *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Gestor/a *</label>
                 <input
                   type="text"
                   value={newGestoraName}
@@ -950,12 +1153,34 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
                 disabled={gestorasLoading || !newGestoraName.trim()}
                 className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {gestorasLoading ? 'Creando...' : 'Crear Gestora'}
+                {gestorasLoading ? 'Creando...' : 'Crear'}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Modal de Confirmación de Eliminación */}
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        title="Confirmar eliminación"
+        message={`¿Estás seguro de que deseas eliminar la tarea "${deleteConfirm.taskTitulo}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        type="danger"
+      />
+
+      {/* Modal de Notificación */}
+      <NotificationModal
+        isOpen={notification.isOpen}
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        onClose={() => setNotification({ ...notification, isOpen: false })}
+        autoClose={false}
+      />
     </div>
   );
 };
