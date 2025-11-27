@@ -15,7 +15,7 @@ export interface UsePersonasResumenState {
 }
 
 export interface UsePersonasResumenActions {
-  fetchPersonasResumen: () => Promise<void>;
+  fetchPersonasResumen: (page?: number, limit?: number) => Promise<void>;
   getPersonaByEpisodio: (episodio: string) => PersonaResumen | undefined;
   clearError: () => void;
   nextPage: () => Promise<void>;
@@ -36,14 +36,14 @@ export const usePersonasResumen = (): UsePersonasResumenState & UsePersonasResum
   const hasNextPage = currentPage < totalPages;
   const hasPreviousPage = currentPage > 1;
 
-  const fetchPersonasResumen = useCallback(async () => {
+  const fetchPersonasResumen = useCallback(async (page: number = 1, limit: number = 1000) => {
     setLoading(true);
     setError(null);
     
     try {
-      // Cargar todos los datos con un límite alto (1000)
-      const url = apiUrls.personasResumen(1, 1000);
-      console.log('🔄 Cargando TODOS los pacientes...');
+      // Cargar todos los datos con el límite especificado
+      const url = apiUrls.personasResumen(page, limit);
+      console.log('🔄 Cargando TODOS los pacientes...', { page, limit, url });
       
       const response = await fetch(url, {
         method: 'GET',
@@ -58,21 +58,27 @@ export const usePersonasResumen = (): UsePersonasResumenState & UsePersonasResum
 
       const data: PersonasResumenResponse = await response.json();
       
-      setPersonas(data.results);
-      setCount(data.count);
-      setCurrentPage(1);
-      setLimit(1000);
+      console.log('📦 Datos recibidos del servidor:', {
+        count: data.count,
+        resultsLength: data.results?.length || 0,
+        firstResult: data.results?.[0] || null
+      });
+      
+      setPersonas(data.results || []);
+      setCount(data.count || 0);
+      setCurrentPage(page);
+      setLimit(limit);
       
       console.log('✅ Todos los datos de personas resumen cargados:', {
         totalCount: data.count,
-        personasCargadas: data.results.length,
+        personasCargadas: data.results?.length || 0,
         url
       });
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error desconocido al cargar datos';
       setError(errorMessage);
-      console.error('❌ Error al cargar personas resumen:', errorMessage);
+      console.error('❌ Error al cargar personas resumen:', errorMessage, err);
     } finally {
       setLoading(false);
     }

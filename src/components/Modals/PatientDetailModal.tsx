@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, AlertTriangle, Plus, FolderOpen, FolderPen, Bed, Hash, Briefcase, CheckCircle, XCircle, Clock, Edit, Save } from 'lucide-react';
+import { X, AlertTriangle, Plus, FolderOpen, FolderPen, Bed, Hash, Briefcase, CheckCircle, XCircle, Clock, Edit, Save, Trash2, Download } from 'lucide-react';
 import { Patient, PatientNote, GestionType, RegistroGestion } from '../../types';
 import { useGestiones } from '../../hooks/useGestiones';
 import { GestionService } from '../../services/GestionService';
+import { ExcelExportService } from '../../services/ExcelExportService';
 
 interface PatientDetailModalProps {
   patient: Patient | null;
@@ -21,6 +22,9 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
   const [, setLoading] = useState(true);
   const [editandoGestion, setEditandoGestion] = useState<number | null>(null);
   const [gestionEditada, setGestionEditada] = useState<any>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showEditSuccessModal, setShowEditSuccessModal] = useState(false);
+  const [gestionAEliminar, setGestionAEliminar] = useState<{ episodio: string; registroId: string; index: number } | null>(null);
   
   // Nuevos campos para gestión completa
   const [nuevaGestion, setNuevaGestion] = useState({
@@ -44,16 +48,40 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
     gestiones, 
     loading: gestionesLoading, 
     error: gestionesError, 
-    fetchGestiones
+    fetchGestiones,
+    createGestion,
+    updateGestion,
+    deleteGestion
   } = useGestiones();
 
   useEffect(() => {
     if (patient && isOpen) {
+      // Siempre mostrar la pestaña de Información General al abrir el modal
+      setActiveTab('details');
+      
       loadNotes();
       // Cargar gestiones del episodio
       if (patient.episodio) {
         fetchGestiones(patient.episodio);
       }
+      
+      // Prellenar campos con valores por defecto (fecha y hora de Chile)
+      const ahora = new Date();
+      // Obtener fecha y hora en zona horaria de Chile (America/Santiago)
+      const fechaHoraChile = new Date(ahora.toLocaleString('en-CL', { timeZone: 'America/Santiago' }));
+      
+      // Formato YYYY-MM-DD para input type="date"
+      const fechaHoy = fechaHoraChile.toISOString().split('T')[0];
+      
+      // Formato HH:MM para input type="time" (en hora de Chile)
+      const horaActual = fechaHoraChile.toTimeString().slice(0, 5);
+      
+      setNuevaGestion(prev => ({
+        ...prev,
+        cama: patient.ultima_cama || prev.cama || '',
+        fecha_inicio: prev.fecha_inicio || fechaHoy,
+        hora_inicio: prev.hora_inicio || horaActual,
+      }));
     }
   }, [patient, isOpen, fetchGestiones]);
 
@@ -72,70 +100,270 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
     setLoading(false);
   };
 
-  const handleAddNote = async () => {
-    if (!patient || !nuevaGestion.que_gestion_se_solicito.trim()) return;
-
-    // Crear la gestión con todos los campos
-    const gestionData = {
-      patient_id: patient.id,
-      user_name: 'Juan Pérez',
-      user_role: 'Gestor de Estadía',
-      tipo_gestion: (nuevaGestion.que_gestion_se_solicito.toLowerCase().includes('social') ? 'social' :
-                   nuevaGestion.que_gestion_se_solicito.toLowerCase().includes('clínica') ? 'clinica' :
-                   nuevaGestion.que_gestion_se_solicito.toLowerCase().includes('administrativa') ? 'administrativa' : 
-                   'general') as GestionType,
-      nota: JSON.stringify({
-        ...nuevaGestion,
-        episodio: patient.episodio,
-        marca_temporal: new Date().toISOString(),
-        ultima_modificacion: new Date().toISOString(),
-      }),
-      fecha_gestion: new Date().toISOString(),
-    };
-
-    // Crear nota con todos los datos
-    const createdNote: PatientNote = {
-      id: `note_${Date.now()}`,
-      patient_id: patient.id,
-      user_name: 'Juan Pérez',
-      user_role: 'Gestor de Estadía',
-      tipo_gestion: gestionData.tipo_gestion,
-      nota: gestionData.nota,
-      fecha_gestion: gestionData.fecha_gestion,
-      created_at: new Date().toISOString(),
-    };
-
-    // Guardar en localStorage
-    try {
-      const updatedNotes = [createdNote, ...notes];
-      setNotes(updatedNotes);
-      localStorage.setItem(`notes_${patient.id}`, JSON.stringify(updatedNotes));
-    } catch (error) {
-      console.error('Error saving note:', error);
-    }
-
-    // Resetear formulario
-    setNuevaGestion({
-      que_gestion_se_solicito: '',
-      fecha_inicio: '',
-      hora_inicio: '',
-      cama: '',
-      texto_libre_diagnostico_admision: '',
-      diagnostico_transfer: '',
-      concretado: '',
-      estado: '',
-      motivo_de_cancelacion: '',
-      tipo_de_traslado: '',
-      centro_de_destinatario: '',
-      nivel_de_atencion: '',
-      servicio_especialidad: '',
-      fecha_de_finalizacion: '',
-      hora_de_finalizacion: '',
+  // Función helper para obtener fecha/hora actual en formato ISO con zona horaria de Chile
+  const obtenerFechaChileISO = (): string => {
+    const ahora = new Date();
+    // Obtener fecha y hora en zona horaria de Chile usando Intl.DateTimeFormat
+    const formatter = new Intl.DateTimeFormat('en-CL', {
+      timeZone: 'America/Santiago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
     });
     
-    // Recargar gestiones para mostrar la nueva
-    if (patient.episodio) {
-      fetchGestiones(patient.episodio);
+    const partes = formatter.formatToParts(ahora);
+    const year = partes.find(p => p.type === 'year')?.value;
+    const month = partes.find(p => p.type === 'month')?.value;
+    const day = partes.find(p => p.type === 'day')?.value;
+    const hour = partes.find(p => p.type === 'hour')?.value;
+    const minute = partes.find(p => p.type === 'minute')?.value;
+    const second = partes.find(p => p.type === 'second')?.value;
+    
+    // Construir fecha ISO en formato: YYYY-MM-DDTHH:mm:ss.sss
+    // El servidor debería interpretar esta fecha como hora local de Chile
+    return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+  };
+
+  // Función para validar campos mínimos requeridos
+  const validarCamposMinimos = (): { valido: boolean; errores: string[] } => {
+    const errores: string[] = [];
+
+    // Validar que el paciente tenga los datos necesarios
+    if (!patient) {
+      errores.push('No hay información del paciente disponible');
+      return { valido: false, errores };
+    }
+
+    if (!patient.episodio || patient.episodio.trim() === '') {
+      errores.push('El paciente debe tener un episodio asignado');
+    }
+
+    if (!patient.nombre || patient.nombre.trim() === '') {
+      errores.push('El paciente debe tener un nombre');
+    }
+
+    if (!patient.tipo_cuenta_1 || patient.tipo_cuenta_1.trim() === '' || patient.tipo_cuenta_1 === 'No especificado') {
+      errores.push('El paciente debe tener un tipo de cuenta asignado');
+    }
+
+    // Validar que se haya seleccionado un tipo de gestión
+    if (!nuevaGestion.que_gestion_se_solicito || nuevaGestion.que_gestion_se_solicito.trim() === '') {
+      errores.push('Debe seleccionar un tipo de gestión');
+    }
+
+    // Validar diagnóstico de admisión (obligatorio)
+    if (!nuevaGestion.texto_libre_diagnostico_admision || nuevaGestion.texto_libre_diagnostico_admision.trim() === '') {
+      errores.push('Debe ingresar un diagnóstico de admisión');
+    }
+
+    return {
+      valido: errores.length === 0,
+      errores
+    };
+  };
+
+  const handleAddNote = async () => {
+    if (!patient) return;
+
+    // Validar campos mínimos requeridos
+    const validacion = validarCamposMinimos();
+    if (!validacion.valido) {
+      alert(`Por favor complete los siguientes campos requeridos:\n\n${validacion.errores.join('\n')}`);
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Función helper para extraer mes y año de una fecha
+      const extraerMesYAno = (fecha: string) => {
+        try {
+          const fechaObj = new Date(fecha);
+          const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 
+                        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+          const mes = meses[fechaObj.getMonth()];
+          const ano = fechaObj.getFullYear().toString();
+          return { mes, ano };
+        } catch (error) {
+          console.error('Error al extraer mes y año:', error);
+          return null;
+        }
+      };
+
+      // Preparar datos para el endpoint
+      const marcaTemporal = obtenerFechaChileISO();
+      const nombreCompleto = `${patient.nombre} ${patient.apellido_paterno} ${patient.apellido_materno}`.trim();
+      
+      // Construir objeto con campos mínimos requeridos
+      const gestionData: any = {
+        episodio: patient.episodio,
+        marca_temporal: marcaTemporal,
+        nombre: nombreCompleto,
+        tipo_cuenta_1: patient.tipo_cuenta_1 || 'No especificado',
+        ultima_modificacion: marcaTemporal,
+      };
+
+      // Agregar campos opcionales si tienen valor
+      if (nuevaGestion.que_gestion_se_solicito) {
+        gestionData.que_gestion_se_solicito = nuevaGestion.que_gestion_se_solicito;
+      }
+      if (nuevaGestion.fecha_inicio) {
+        gestionData.fecha_inicio = nuevaGestion.fecha_inicio;
+        // Extraer mes y año de la fecha de inicio
+        const mesYAno = extraerMesYAno(nuevaGestion.fecha_inicio);
+        if (mesYAno) {
+          gestionData.mes = mesYAno.mes;
+          gestionData.ano = mesYAno.ano;
+        }
+      }
+      if (nuevaGestion.hora_inicio) {
+        gestionData.hora_inicio = nuevaGestion.hora_inicio;
+      }
+      if (nuevaGestion.cama) {
+        gestionData.cama = nuevaGestion.cama;
+      } else if (patient.ultima_cama) {
+        gestionData.cama = patient.ultima_cama;
+      }
+      if (nuevaGestion.texto_libre_diagnostico_admision) {
+        gestionData.texto_libre_diagnostico_admision = nuevaGestion.texto_libre_diagnostico_admision;
+      } else if (patient.diagnostico_principal) {
+        gestionData.texto_libre_diagnostico_admision = patient.diagnostico_principal;
+      }
+      if (nuevaGestion.diagnostico_transfer) {
+        gestionData.diagnostico_transfer = nuevaGestion.diagnostico_transfer;
+      }
+      if (nuevaGestion.concretado) {
+        gestionData.concretado = nuevaGestion.concretado.toUpperCase();
+      }
+      if (nuevaGestion.estado) {
+        gestionData.estado = nuevaGestion.estado;
+      }
+      if (nuevaGestion.motivo_de_cancelacion) {
+        gestionData.motivo_de_cancelacion = nuevaGestion.motivo_de_cancelacion;
+      }
+      if (nuevaGestion.tipo_de_traslado) {
+        gestionData.tipo_de_traslado = nuevaGestion.tipo_de_traslado;
+      }
+      if (nuevaGestion.centro_de_destinatario) {
+        gestionData.centro_de_destinatario = nuevaGestion.centro_de_destinatario;
+      }
+      if (nuevaGestion.nivel_de_atencion) {
+        gestionData.nivel_de_atencion = nuevaGestion.nivel_de_atencion;
+      }
+      if (nuevaGestion.servicio_especialidad) {
+        gestionData.servicio_especialidad = nuevaGestion.servicio_especialidad;
+      }
+      if (nuevaGestion.fecha_de_finalizacion) {
+        gestionData.fecha_de_finalizacion = nuevaGestion.fecha_de_finalizacion;
+      }
+      if (nuevaGestion.hora_de_finalizacion) {
+        gestionData.hora_de_finalizacion = nuevaGestion.hora_de_finalizacion;
+      }
+
+      // Agregar datos del paciente si están disponibles
+      if (patient.rut) {
+        gestionData.rut = patient.rut;
+        gestionData.run = patient.rut;
+      }
+      if (patient.fecha_de_nacimiento) {
+        gestionData.fecha_de_nacimiento = patient.fecha_de_nacimiento.split('T')[0]; // Solo fecha, sin hora
+      }
+      if (patient.sexo) {
+        gestionData.sexo = patient.sexo === 'M' ? 'Masculino' : 'Femenino';
+      }
+      if (patient.fecha_ingreso) {
+        const fechaAdmision = patient.fecha_ingreso.split('T')[0]; // Solo fecha, sin hora
+        gestionData.fecha_admision = fechaAdmision;
+        // Extraer mes y año de la fecha de admisión (si no se extrajeron de fecha_inicio)
+        if (!gestionData.mes || !gestionData.ano) {
+          const mesYAno = extraerMesYAno(fechaAdmision);
+          if (mesYAno) {
+            gestionData.mes = mesYAno.mes;
+            gestionData.ano = mesYAno.ano;
+          }
+        }
+      }
+      if (patient.dias_hospitalizacion) {
+        gestionData.dias_hospitalizacion = patient.dias_hospitalizacion;
+      }
+      if (patient.convenio) {
+        gestionData.convenio = patient.convenio;
+      }
+      if (patient.nombre_de_la_aseguradora) {
+        gestionData.nombre_de_la_aseguradora = patient.nombre_de_la_aseguradora;
+      }
+      if (patient.valor_parcial_estadia) {
+        gestionData.valor_parcial = patient.valor_parcial_estadia;
+      }
+      if (patient.tipo_cuenta_2) {
+        gestionData.tipo_cuenta_2 = patient.tipo_cuenta_2;
+      }
+      if (patient.tipo_cuenta_3) {
+        gestionData.tipo_cuenta_3 = patient.tipo_cuenta_3;
+      }
+
+      // Llamar al endpoint para crear la gestión
+      await createGestion(gestionData);
+
+      // Crear nota local para mostrar en el historial (opcional, para mantener compatibilidad)
+      const createdNote: PatientNote = {
+        id: `note_${Date.now()}`,
+        patient_id: patient.id,
+        user_name: 'Sistema',
+        user_role: 'Gestor de Estadía',
+        tipo_gestion: (nuevaGestion.que_gestion_se_solicito.toLowerCase().includes('social') ? 'social' :
+                     nuevaGestion.que_gestion_se_solicito.toLowerCase().includes('clínica') ? 'clinica' :
+                     nuevaGestion.que_gestion_se_solicito.toLowerCase().includes('administrativa') ? 'administrativa' : 
+                     'general') as GestionType,
+        nota: JSON.stringify(gestionData),
+        fecha_gestion: marcaTemporal,
+        created_at: marcaTemporal,
+      };
+
+      // Guardar en localStorage (opcional, para mantener compatibilidad)
+      try {
+        const updatedNotes = [createdNote, ...notes];
+        setNotes(updatedNotes);
+        localStorage.setItem(`notes_${patient.id}`, JSON.stringify(updatedNotes));
+      } catch (error) {
+        console.error('Error saving note to localStorage:', error);
+      }
+
+      // Resetear formulario
+      setNuevaGestion({
+        que_gestion_se_solicito: '',
+        fecha_inicio: '',
+        hora_inicio: '',
+        cama: '',
+        texto_libre_diagnostico_admision: '',
+        diagnostico_transfer: '',
+        concretado: '',
+        estado: '',
+        motivo_de_cancelacion: '',
+        tipo_de_traslado: '',
+        centro_de_destinatario: '',
+        nivel_de_atencion: '',
+        servicio_especialidad: '',
+        fecha_de_finalizacion: '',
+        hora_de_finalizacion: '',
+      });
+
+      // Las gestiones se recargan automáticamente en createGestion
+      console.log('✅ Gestión agregada exitosamente');
+      
+      // Mostrar modal de éxito
+      setShowSuccessModal(true);
+      
+    } catch (error) {
+      console.error('Error al agregar gestión:', error);
+      // Mostrar error al usuario (podrías agregar un toast o alert aquí)
+      alert(`Error al agregar la gestión: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -145,30 +373,224 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
   };
 
   const handleSaveEdit = async () => {
-    if (editandoGestion === null || !gestionEditada || !patient) return;
+    if (editandoGestion === null || !gestionEditada || !patient || !patient.episodio) return;
 
     try {
-      // En el futuro: aquí se hará el llamado al endpoint
-      // await updateGestion(gestionEditada);
-      
-      // Por ahora: guardar en localStorage
-      console.log('Guardando gestión editada:', gestionEditada);
-      
-      // Recargar gestiones
-      if (patient.episodio) {
-        fetchGestiones(patient.episodio);
+      setLoading(true);
+
+      // Obtener la marca_temporal como registroId
+      const registroId = gestionEditada.marca_temporal;
+      if (!registroId) {
+        alert('Error: No se pudo identificar la gestión a actualizar');
+        return;
       }
+
+      // Función helper para extraer mes y año de una fecha
+      const extraerMesYAno = (fecha: string) => {
+        try {
+          const fechaObj = new Date(fecha);
+          const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 
+                        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+          const mes = meses[fechaObj.getMonth()];
+          const ano = fechaObj.getFullYear().toString();
+          return { mes, ano };
+        } catch (error) {
+          console.error('Error al extraer mes y año:', error);
+          return null;
+        }
+      };
+
+      // Preparar datos para actualizar - construir objeto con campos válidos
+      const nombreCompleto = `${patient.nombre} ${patient.apellido_paterno} ${patient.apellido_materno}`.trim();
+      const ultimaModificacion = obtenerFechaChileISO();
+      
+      const updateData: any = {
+        // Campos mínimos requeridos
+        episodio: patient.episodio,
+        marca_temporal: gestionEditada.marca_temporal, // Mantener la marca temporal original
+        nombre: nombreCompleto,
+        tipo_cuenta_1: patient.tipo_cuenta_1 || 'No especificado',
+        ultima_modificacion: ultimaModificacion,
+      };
+
+      // Agregar campos editables del formulario
+      if (gestionEditada.que_gestion_se_solicito) {
+        updateData.que_gestion_se_solicito = gestionEditada.que_gestion_se_solicito;
+      }
+      if (gestionEditada.fecha_inicio) {
+        updateData.fecha_inicio = gestionEditada.fecha_inicio;
+        // Extraer mes y año de la fecha de inicio
+        const mesYAno = extraerMesYAno(gestionEditada.fecha_inicio);
+        if (mesYAno) {
+          updateData.mes = mesYAno.mes;
+          updateData.ano = mesYAno.ano;
+        }
+      }
+      if (gestionEditada.hora_inicio) {
+        updateData.hora_inicio = gestionEditada.hora_inicio;
+      }
+      if (gestionEditada.cama !== undefined && gestionEditada.cama !== null) {
+        updateData.cama = gestionEditada.cama;
+      }
+      // Diagnóstico de admisión es obligatorio, siempre incluirlo
+      if (gestionEditada.texto_libre_diagnostico_admision !== undefined) {
+        updateData.texto_libre_diagnostico_admision = gestionEditada.texto_libre_diagnostico_admision || '';
+      }
+      if (gestionEditada.diagnostico_transfer) {
+        updateData.diagnostico_transfer = gestionEditada.diagnostico_transfer;
+      }
+      if (gestionEditada.concretado) {
+        updateData.concretado = gestionEditada.concretado.toUpperCase ? gestionEditada.concretado.toUpperCase() : gestionEditada.concretado;
+      }
+      if (gestionEditada.estado) {
+        updateData.estado = gestionEditada.estado;
+      }
+      if (gestionEditada.motivo_de_cancelacion) {
+        updateData.motivo_de_cancelacion = gestionEditada.motivo_de_cancelacion;
+      }
+      if (gestionEditada.motivo_de_rechazo) {
+        updateData.motivo_de_rechazo = gestionEditada.motivo_de_rechazo;
+      }
+      if (gestionEditada.tipo_de_traslado) {
+        updateData.tipo_de_traslado = gestionEditada.tipo_de_traslado;
+      }
+      if (gestionEditada.centro_de_destinatario) {
+        updateData.centro_de_destinatario = gestionEditada.centro_de_destinatario;
+      }
+      if (gestionEditada.nivel_de_atencion) {
+        updateData.nivel_de_atencion = gestionEditada.nivel_de_atencion;
+      }
+      if (gestionEditada.servicio_especialidad) {
+        updateData.servicio_especialidad = gestionEditada.servicio_especialidad;
+      }
+      if (gestionEditada.fecha_de_finalizacion) {
+        updateData.fecha_de_finalizacion = gestionEditada.fecha_de_finalizacion;
+      }
+      if (gestionEditada.hora_de_finalizacion) {
+        updateData.hora_de_finalizacion = gestionEditada.hora_de_finalizacion;
+      }
+      if (gestionEditada.dias_solicitados_homecare) {
+        updateData.dias_solicitados_homecare = gestionEditada.dias_solicitados_homecare;
+      }
+      if (gestionEditada.texto_libre_causa_rechazo) {
+        updateData.texto_libre_causa_rechazo = gestionEditada.texto_libre_causa_rechazo;
+      }
+      if (gestionEditada.causa_devolucion_rechazo) {
+        updateData.causa_devolucion_rechazo = gestionEditada.causa_devolucion_rechazo;
+      }
+      if (gestionEditada.solicitud_de_traslado) {
+        updateData.solicitud_de_traslado = gestionEditada.solicitud_de_traslado;
+      }
+      if (gestionEditada.status) {
+        updateData.status = gestionEditada.status;
+      }
+
+      // Agregar datos del paciente si están disponibles
+      if (patient.rut) {
+        updateData.rut = patient.rut;
+        updateData.run = patient.rut;
+      }
+      if (patient.fecha_de_nacimiento) {
+        updateData.fecha_de_nacimiento = patient.fecha_de_nacimiento.split('T')[0];
+      }
+      if (patient.sexo) {
+        updateData.sexo = patient.sexo === 'M' ? 'Masculino' : 'Femenino';
+      }
+      if (patient.fecha_ingreso) {
+        const fechaAdmision = patient.fecha_ingreso.split('T')[0];
+        updateData.fecha_admision = fechaAdmision;
+        // Si no hay fecha_inicio, usar fecha_admision para mes y año
+        if (!updateData.mes || !updateData.ano) {
+          const mesYAno = extraerMesYAno(fechaAdmision);
+          if (mesYAno) {
+            updateData.mes = mesYAno.mes;
+            updateData.ano = mesYAno.ano;
+          }
+        }
+      }
+      if (patient.dias_hospitalizacion) {
+        updateData.dias_hospitalizacion = patient.dias_hospitalizacion;
+      }
+      if (patient.convenio) {
+        updateData.convenio = patient.convenio;
+      }
+      if (patient.nombre_de_la_aseguradora) {
+        updateData.nombre_de_la_aseguradora = patient.nombre_de_la_aseguradora;
+      }
+      if (patient.valor_parcial_estadia) {
+        updateData.valor_parcial = patient.valor_parcial_estadia;
+      }
+      if (patient.tipo_cuenta_2) {
+        updateData.tipo_cuenta_2 = patient.tipo_cuenta_2;
+      }
+      if (patient.tipo_cuenta_3) {
+        updateData.tipo_cuenta_3 = patient.tipo_cuenta_3;
+      }
+
+      console.log('📤 Datos a enviar para actualizar:', updateData);
+
+      // Llamar al endpoint para actualizar la gestión
+      await updateGestion(patient.episodio, registroId, updateData);
+      
+      console.log('✅ Gestión actualizada exitosamente');
       
       setEditandoGestion(null);
       setGestionEditada(null);
+      
+      // Mostrar modal de éxito de edición
+      setShowEditSuccessModal(true);
+      
     } catch (error) {
       console.error('Error al guardar gestión editada:', error);
+      alert(`Error al actualizar la gestión: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleCancelEdit = () => {
     setEditandoGestion(null);
     setGestionEditada(null);
+  };
+
+  const handleDeleteGestion = async () => {
+    if (!gestionAEliminar || !patient) return;
+
+    try {
+      setLoading(true);
+      await deleteGestion(gestionAEliminar.episodio, gestionAEliminar.registroId);
+      console.log('✅ Gestión eliminada exitosamente');
+      setGestionAEliminar(null);
+    } catch (error) {
+      console.error('Error al eliminar gestión:', error);
+      alert(`Error al eliminar la gestión: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmDelete = (gestion: RegistroGestion, index: number) => {
+    if (!patient || !patient.episodio || !gestion.marca_temporal) {
+      alert('Error: No se pudo identificar la gestión a eliminar');
+      return;
+    }
+    setGestionAEliminar({
+      episodio: patient.episodio,
+      registroId: gestion.marca_temporal,
+      index
+    });
+  };
+
+  const handleClose = () => {
+    // Cancelar cualquier edición en curso antes de cerrar
+    if (editandoGestion !== null) {
+      handleCancelEdit();
+    }
+    // Cancelar cualquier eliminación pendiente
+    if (gestionAEliminar !== null) {
+      setGestionAEliminar(null);
+    }
+    onClose();
   };
 
   const getRiskColor = (risk: string) => {
@@ -200,6 +622,20 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
     });
   };
 
+  const handleDownloadExcel = () => {
+    if (!patient) {
+      alert('No hay información del paciente disponible');
+      return;
+    }
+
+    try {
+      ExcelExportService.exportPatientAndGestiones(patient, gestiones);
+    } catch (error) {
+      console.error('Error al generar Excel:', error);
+      alert(error instanceof Error ? error.message : 'Error al generar el archivo Excel. Por favor, intente nuevamente.');
+    }
+  };
+
   if (!isOpen || !patient) return null;
 
   return (
@@ -215,12 +651,24 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
               Episodio: {patient.episodio}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="h-6 w-6" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {gestiones.length > 0 && (
+              <button
+                onClick={handleDownloadExcel}
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                title="Descargar Excel con información del paciente y gestiones"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Descargar Excel
+              </button>
+            )}
+            <button
+              onClick={handleClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
         </div>
 
         <div className="mt-4">
@@ -380,12 +828,15 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                   {/* Tipo de Gestión */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tipo de Gestión *
+                      Tipo de Gestión <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={nuevaGestion.que_gestion_se_solicito}
                       onChange={(e) => setNuevaGestion({...nuevaGestion, que_gestion_se_solicito: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        !nuevaGestion.que_gestion_se_solicito.trim() ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                      required
                     >
                       <option value="">Seleccione...</option>
                       <option value="Gestión Clínica">Gestión Clínica</option>
@@ -430,25 +881,40 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                     </label>
                     <input
                       type="text"
-                      value={nuevaGestion.cama}
+                      value={nuevaGestion.cama || patient?.ultima_cama || ''}
                       onChange={(e) => setNuevaGestion({...nuevaGestion, cama: e.target.value})}
                       placeholder="Ej: CH344P3"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    {patient?.ultima_cama && !nuevaGestion.cama && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Cama actual del paciente: {patient.ultima_cama}
+                      </p>
+                    )}
                   </div>
 
                   {/* Diagnóstico Admisión */}
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Diagnóstico de Admisión
+                      Diagnóstico de Admisión <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={nuevaGestion.texto_libre_diagnostico_admision}
                       onChange={(e) => setNuevaGestion({...nuevaGestion, texto_libre_diagnostico_admision: e.target.value})}
                       placeholder="Ingrese el diagnóstico de admisión..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        !nuevaGestion.texto_libre_diagnostico_admision.trim() 
+                          ? 'border-red-300' 
+                          : 'border-gray-300'
+                      }`}
+                      required
                     />
+                    {patient?.diagnostico_principal && !nuevaGestion.texto_libre_diagnostico_admision && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Diagnóstico del paciente: {patient.diagnostico_principal}
+                      </p>
+                    )}
                   </div>
 
                   {/* Diagnóstico Transferencia */}
@@ -592,10 +1058,38 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                   </div>
                 </div>
                 
+                {/* Mensaje de validación */}
+                {(() => {
+                  const validacion = validarCamposMinimos();
+                  if (!validacion.valido && nuevaGestion.que_gestion_se_solicito) {
+                    return (
+                      <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-start">
+                          <AlertTriangle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
+                          <div className="flex-1">
+                            <h4 className="text-sm font-medium text-yellow-800 mb-1">
+                              Campos requeridos faltantes:
+                            </h4>
+                            <ul className="text-xs text-yellow-700 list-disc list-inside">
+                              {validacion.errores.map((error, index) => (
+                                <li key={index}>{error}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 <div className="mt-6 flex justify-end">
                   <button
                     onClick={handleAddNote}
-                    disabled={!nuevaGestion.que_gestion_se_solicito.trim()}
+                    disabled={(() => {
+                      const validacion = validarCamposMinimos();
+                      return !validacion.valido;
+                    })()}
                     className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Plus className="h-5 w-5 mr-2" />
@@ -708,12 +1202,20 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                             {/* Formulario de edición inline */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {Object.entries(gestionEditada).map(([key, value]: [string, any]) => {
-                                if (key === 'marca_temporal' || key === 'ultima_modificacion') return null;
+                                if (key === 'marca_temporal' || key === 'ultima_modificacion' || key === 'mes' || key === 'ano') return null;
+                                
+                                // Campos que deben ocupar todo el ancho (texto largo)
+                                const isFullWidth = key === 'texto_libre_diagnostico_admision' || 
+                                                   key === 'texto_libre_causa_rechazo' ||
+                                                   key === 'motivo_de_cancelacion' ||
+                                                   key === 'motivo_de_rechazo' ||
+                                                   key === 'causa_devolucion_rechazo';
                                 
                                 return (
-                                  <div key={key}>
+                                  <div key={key} className={isFullWidth ? 'md:col-span-2' : ''}>
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
                                       {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                      {key === 'texto_libre_diagnostico_admision' && <span className="text-red-500 ml-1">*</span>}
                                     </label>
                                     {key === 'concretado' ? (
                                       <select
@@ -728,7 +1230,7 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                                     ) : key.includes('fecha') ? (
                                       <input
                                         type="date"
-                                        value={value && value.includes('T') ? value.split('T')[0] : value || ''}
+                                        value={value && typeof value === 'string' && value.includes('T') ? value.split('T')[0] : (value || '')}
                                         onChange={(e) => setGestionEditada({...gestionEditada, [key]: e.target.value})}
                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                       />
@@ -739,12 +1241,29 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                                         onChange={(e) => setGestionEditada({...gestionEditada, [key]: e.target.value})}
                                         className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                       />
+                                    ) : isFullWidth ? (
+                                      <textarea
+                                        value={value || ''}
+                                        onChange={(e) => setGestionEditada({...gestionEditada, [key]: e.target.value})}
+                                        rows={3}
+                                        className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                          key === 'texto_libre_diagnostico_admision' && !value 
+                                            ? 'border-red-300' 
+                                            : 'border-gray-300'
+                                        }`}
+                                        placeholder={`Ingrese ${key.replace(/_/g, ' ').toLowerCase()}...`}
+                                      />
                                     ) : (
                                       <input
                                         type="text"
                                         value={value || ''}
                                         onChange={(e) => setGestionEditada({...gestionEditada, [key]: e.target.value})}
-                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                          key === 'texto_libre_diagnostico_admision' && !value 
+                                            ? 'border-red-300' 
+                                            : 'border-gray-300'
+                                        }`}
+                                        placeholder={`Ingrese ${key.replace(/_/g, ' ').toLowerCase()}...`}
                                       />
                                     )}
                                   </div>
@@ -812,6 +1331,14 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                             >
                               <Edit className="h-3 w-3 mr-1" />
                               Editar
+                            </button>
+                            <button
+                              onClick={() => handleConfirmDelete(gestion, index)}
+                              className="inline-flex items-center px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                              title="Eliminar gestión"
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Eliminar
                             </button>
                           </div>
                         </div>
@@ -911,6 +1438,102 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Modal de Éxito - Crear Gestión */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative mx-auto p-6 border w-96 max-w-md shadow-lg rounded-lg bg-white">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                <CheckCircle className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                ¡Gestión Agregada Exitosamente!
+              </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                La gestión ha sido guardada correctamente y se ha agregado al historial del paciente.
+              </p>
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  // Cambiar a la pestaña de historial para que vea la nueva gestión
+                  setActiveTab('additional');
+                }}
+                className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                Ver Historial de Gestiones
+              </button>
+              <button
+                onClick={() => setShowSuccessModal(false)}
+                className="mt-3 w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Éxito - Editar Gestión */}
+      {showEditSuccessModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative mx-auto p-6 border w-96 max-w-md shadow-lg rounded-lg bg-white">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
+                <CheckCircle className="h-8 w-8 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                ¡Gestión Actualizada Exitosamente!
+              </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                Los cambios en la gestión han sido guardados correctamente en el historial del paciente.
+              </p>
+              <button
+                onClick={() => {
+                  setShowEditSuccessModal(false);
+                }}
+                className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación - Eliminar Gestión */}
+      {gestionAEliminar && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative mx-auto p-6 border w-96 max-w-md shadow-lg rounded-lg bg-white">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <AlertTriangle className="h-8 w-8 text-red-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                ¿Eliminar Gestión?
+              </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                Esta acción no se puede deshacer. ¿Estás seguro de que deseas eliminar esta gestión?
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setGestionAEliminar(null)}
+                  className="flex-1 inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDeleteGestion}
+                  disabled={gestionesLoading}
+                  className="flex-1 inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {gestionesLoading ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

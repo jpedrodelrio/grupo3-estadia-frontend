@@ -27,6 +27,12 @@ export type {
   TaskStatus,
 } from './task';
 
+// Tipos de gestoras
+export type {
+  Gestora,
+  CreateGestoraRequest,
+} from './gestora';
+
 // Tipos del sistema (alertas, usuarios, etc.)
 export type {
   Alert,
@@ -46,4 +52,5 @@ export type {
   GestionesEpisodio,
   GestionesResumenResponse,
   UseGestionesState,
+  CreateGestionData,
 } from './gestion';
