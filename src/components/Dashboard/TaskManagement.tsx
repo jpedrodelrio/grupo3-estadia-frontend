@@ -1,13 +1,26 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Plus, Clock, User, AlertTriangle, CheckCircle, Filter, Edit, Users } from 'lucide-react';
-import { Task, Patient } from '../../types';
+import { Plus, Clock, User, AlertTriangle, CheckCircle, Filter, Edit, Users, Trash2 } from 'lucide-react';
+import { Task, Patient, PersonaResumen, PersonasResumenResponse } from '../../types';
 import { useGestoras } from '../../hooks/useGestoras';
+import { apiUrls } from '../../config/api';
+import { PatientService } from '../../services/PatientService';
+
+interface TaskFilters {
+  status?: 'pendiente' | 'en_progreso' | 'completada' | 'cancelada';
+  prioridad?: 'baja' | 'media' | 'alta' | 'critica';
+  gestor?: string;
+  tipo?: 'general' | 'social' | 'clinica' | 'administrativa' | 'coordinacion';
+  paciente_episodio?: string;
+}
 
 interface TaskManagementProps {
   tasks: Task[];
   patients: Patient[];
-  onCreateTask: (task: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => void;
-  onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
+  onCreateTask: (task: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  onUpdateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<void>;
+  onFiltersChange: (filters: TaskFilters) => Promise<void>;
+  loading?: boolean;
 }
 
 export const TaskManagement: React.FC<TaskManagementProps> = ({
@@ -15,19 +28,28 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
   patients,
   onCreateTask,
   onUpdateTask,
+  onDeleteTask,
+  onFiltersChange,
+  loading: externalLoading = false,
 }) => {
   const [showNewTaskForm, setShowNewTaskForm] = useState(false);
   const [showNewGestoraForm, setShowNewGestoraForm] = useState(false);
   const [newGestoraName, setNewGestoraName] = useState('');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [creatingTask, setCreatingTask] = useState(false);
+  const [updatingTask, setUpdatingTask] = useState(false);
   const { gestoras, createGestora, loading: gestorasLoading, error: gestorasError } = useGestoras();
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterPrioridad, setFilterPrioridad] = useState<string>('');
   const [filterRole, setFilterRole] = useState<string>('');
   const [filterGestor, setFilterGestor] = useState<string>('');
   const [filterEpisodio, setFilterEpisodio] = useState<string>('');
   const [episodioSearch, setEpisodioSearch] = useState<string>('');
   const [showEpisodioResults, setShowEpisodioResults] = useState<boolean>(false);
   const episodioSearchRef = useRef<HTMLDivElement>(null);
+  const [searchResults, setSearchResults] = useState<Patient[]>([]);
+  const [searchingPatients, setSearchingPatients] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [newTask, setNewTask] = useState({
     paciente_episodio: '',
     gestor: '',
@@ -55,13 +77,20 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
     };
   }, []);
 
-  const filteredTasks = tasks.filter(task => {
-    if (filterStatus && getTaskStatus(task) !== filterStatus) return false;
-    if (filterRole && (task.rol || (task as any).assigned_role) !== filterRole) return false;
-    if (filterGestor && getTaskGestor(task) !== filterGestor) return false;
-    if (filterEpisodio && getTaskEpisodio(task) !== filterEpisodio) return false;
-    return true;
-  });
+  // Aplicar filtros llamando al endpoint cuando cambien
+  useEffect(() => {
+    const filters: TaskFilters = {};
+    if (filterStatus) filters.status = filterStatus as any;
+    if (filterPrioridad) filters.prioridad = filterPrioridad as any;
+    if (filterGestor) filters.gestor = filterGestor;
+    if (filterEpisodio) filters.paciente_episodio = filterEpisodio;
+    // Nota: filterRole no está en el endpoint según el ejemplo, pero lo incluimos por si el backend lo soporta
+    
+    onFiltersChange(filters);
+  }, [filterStatus, filterPrioridad, filterGestor, filterEpisodio, onFiltersChange]);
+
+  // Usar las tareas directamente del endpoint (ya vienen filtradas)
+  const filteredTasks = tasks;
 
   const getPriorityColor = (prioridad: string) => {
     switch (prioridad) {
@@ -98,40 +127,52 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
     return task.gestor || (task as any).assigned_to || '';
   };
 
-  const handleCreateTask = () => {
+  const handleCreateTask = async () => {
     if (!newTask.titulo || !newTask.paciente_episodio || !newTask.gestor) return;
     
-    onCreateTask({
-      ...newTask,
-    });
-    
-    handleCloseNewTaskForm();
+    setCreatingTask(true);
+    try {
+      await onCreateTask({
+        ...newTask,
+      });
+      handleCloseNewTaskForm();
+    } catch (error) {
+      console.error('Error al crear tarea:', error);
+    } finally {
+      setCreatingTask(false);
+    }
   };
 
   const handleEditTask = (task: Task) => {
     setEditingTask(task);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingTask) return;
     const episodio = getTaskEpisodio(editingTask);
     const gestor = getTaskGestor(editingTask);
     if (!editingTask.titulo || !episodio || !gestor) return;
 
-    onUpdateTask(editingTask.id, {
-      paciente_episodio: episodio,
-      gestor: gestor,
-      rol: editingTask.rol || (editingTask as any).assigned_role || '',
-      tipo: editingTask.tipo || (editingTask as any).tipo_tarea || 'general',
-      prioridad: editingTask.prioridad || 'media',
-      titulo: editingTask.titulo,
-      descripcion: editingTask.descripcion || '',
-      fecha_inicio: editingTask.fecha_inicio || '',
-      fecha_vencimiento: editingTask.fecha_vencimiento || '',
-      status: getTaskStatus(editingTask),
-    });
-
-    setEditingTask(null);
+    setUpdatingTask(true);
+    try {
+      await onUpdateTask(editingTask.id, {
+        paciente_episodio: episodio,
+        gestor: gestor,
+        rol: editingTask.rol || (editingTask as any).assigned_role || '',
+        tipo: editingTask.tipo || (editingTask as any).tipo_tarea || 'general',
+        prioridad: editingTask.prioridad || 'media',
+        titulo: editingTask.titulo,
+        descripcion: editingTask.descripcion || '',
+        fecha_inicio: editingTask.fecha_inicio || '',
+        fecha_vencimiento: editingTask.fecha_vencimiento || '',
+        status: getTaskStatus(editingTask),
+      });
+      setEditingTask(null);
+    } catch (error) {
+      console.error('Error al actualizar tarea:', error);
+    } finally {
+      setUpdatingTask(false);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -176,20 +217,76 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
     return patient ? `${patient.nombre} ${patient.apellido_paterno}` : 'Paciente no encontrado';
   };
 
-  // Filtrar pacientes para el searchbar de episodio
+  // Buscar pacientes desde el endpoint cuando el usuario escribe
+  useEffect(() => {
+    // Limpiar timeout anterior
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Si no hay término de búsqueda, limpiar resultados
+    if (!episodioSearch.trim()) {
+      setSearchResults([]);
+      setSearchingPatients(false);
+      return;
+    }
+
+    // Debounce: esperar 300ms antes de buscar
+    setSearchingPatients(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const url = apiUrls.personasResumen(1, 50, episodioSearch);
+        console.log('🔍 Buscando pacientes:', { searchTerm: episodioSearch, url });
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
+        }
+
+        const data: PersonasResumenResponse = await response.json();
+        const personas: PersonaResumen[] = data.results || [];
+        
+        // Filtrar por RUT, episodio o nombre (el nombre completo está en persona.nombre)
+        const searchLower = episodioSearch.toLowerCase();
+        const filteredPersonas = personas.filter((p: PersonaResumen) => {
+          return (
+            p.episodio?.toLowerCase().includes(searchLower) ||
+            p.nombre?.toLowerCase().includes(searchLower) ||
+            p.rut?.toLowerCase().includes(searchLower)
+          );
+        }).slice(0, 10); // Limitar a 10 resultados
+
+        // Convertir PersonaResumen a Patient usando el servicio
+        const results: Patient[] = PatientService.convertPersonasToPatients(filteredPersonas);
+
+        console.log('✅ Resultados de búsqueda:', results.length);
+        setSearchResults(results);
+      } catch (err) {
+        console.error('❌ Error al buscar pacientes:', err);
+        setSearchResults([]);
+      } finally {
+        setSearchingPatients(false);
+      }
+    }, 300);
+
+    // Cleanup
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [episodioSearch]);
+
+  // Usar los resultados de la búsqueda en lugar del filtrado local
   const filteredPatientsForSearch = useMemo(() => {
-    if (!episodioSearch.trim()) return [];
-    const searchLower = episodioSearch.toLowerCase();
-    return patients
-      .filter(p => p.estado === 'activo')
-      .filter(p => 
-        p.episodio.toLowerCase().includes(searchLower) ||
-        p.nombre.toLowerCase().includes(searchLower) ||
-        p.apellido_paterno.toLowerCase().includes(searchLower) ||
-        p.rut.toLowerCase().includes(searchLower)
-      )
-      .slice(0, 10); // Limitar a 10 resultados
-  }, [episodioSearch, patients]);
+    return searchResults;
+  }, [searchResults]);
 
   const handleEpisodioSelect = (episodio: string, nombre: string) => {
     setNewTask({...newTask, paciente_episodio: episodio});
@@ -260,6 +357,18 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
             <option value="en_progreso">En Progreso</option>
             <option value="completada">Completada</option>
             <option value="cancelada">Cancelada</option>
+          </select>
+          
+          <select
+            value={filterPrioridad}
+            onChange={(e) => setFilterPrioridad(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Todas las prioridades</option>
+            <option value="baja">Baja</option>
+            <option value="media">Media</option>
+            <option value="alta">Alta</option>
+            <option value="critica">Crítica</option>
           </select>
           
           <select
@@ -358,6 +467,14 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
                   <div className="flex items-center space-x-2">
                     {isOverdue && <AlertTriangle className="h-5 w-5 text-red-500" />}
                     <button
+                      onClick={() => onDeleteTask(task.id)}
+                      className="px-3 py-1 text-sm border border-red-300 text-red-700 rounded-md hover:bg-red-50 transition-colors flex items-center"
+                      title="Eliminar tarea"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Eliminar
+                    </button>
+                    <button
                       onClick={() => handleEditTask(task)}
                       className="px-3 py-1 text-sm border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors flex items-center"
                       title="Editar tarea"
@@ -387,17 +504,21 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
             );
           })}
           
-          {filteredTasks.length === 0 && (
+          {externalLoading ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">Cargando tareas...</p>
+            </div>
+          ) : filteredTasks.length === 0 ? (
             <div className="text-center py-12">
               <CheckCircle className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No hay tareas</h3>
               <p className="mt-1 text-sm text-gray-500">
-                {filterStatus || filterRole || filterGestor || filterEpisodio 
+                {filterStatus || filterPrioridad || filterRole || filterGestor || filterEpisodio 
                   ? 'No hay tareas que coincidan con los filtros.' 
                   : 'Comience creando una nueva tarea.'}
               </p>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -434,23 +555,28 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
                     placeholder="Buscar por episodio, nombre o RUT..."
                     required
                   />
-                  {showEpisodioResults && filteredPatientsForSearch.length > 0 && (
+                  {showEpisodioResults && episodioSearch && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                      {filteredPatientsForSearch.map(patient => (
-                        <div
-                          key={patient.episodio}
-                          onClick={() => handleEpisodioSelect(patient.episodio, `${patient.nombre} ${patient.apellido_paterno}`)}
-                          className="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                        >
-                          <div className="font-medium text-gray-900">{patient.nombre} {patient.apellido_paterno}</div>
-                          <div className="text-sm text-gray-500">RUT: {patient.rut} | Episodio: {patient.episodio}</div>
+                      {searchingPatients ? (
+                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                          Buscando pacientes...
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  {showEpisodioResults && episodioSearch && filteredPatientsForSearch.length === 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg p-4 text-sm text-gray-500">
-                      No se encontraron pacientes
+                      ) : filteredPatientsForSearch.length > 0 ? (
+                        filteredPatientsForSearch.map(patient => (
+                          <div
+                            key={patient.episodio}
+                            onClick={() => handleEpisodioSelect(patient.episodio, `${patient.nombre} ${patient.apellido_paterno}`)}
+                            className="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-medium text-gray-900">{patient.nombre} {patient.apellido_paterno}</div>
+                            <div className="text-sm text-gray-500">RUT: {patient.rut} | Episodio: {patient.episodio}</div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                          No se encontraron pacientes
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -587,9 +713,10 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
               </button>
               <button
                 onClick={handleCreateTask}
-                className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                disabled={creatingTask}
+                className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Crear Tarea
+                {creatingTask ? 'Creando...' : 'Crear Tarea'}
               </button>
             </div>
           </div>
@@ -761,9 +888,10 @@ export const TaskManagement: React.FC<TaskManagementProps> = ({
               </button>
               <button
                 onClick={handleSaveEdit}
-                className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                disabled={updatingTask}
+                className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Guardar Cambios
+                {updatingTask ? 'Guardando...' : 'Guardar Cambios'}
               </button>
             </div>
           </div>
