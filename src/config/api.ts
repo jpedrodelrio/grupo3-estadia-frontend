@@ -10,6 +10,7 @@ interface ApiConfig {
   downloadCsvEndpoint: string;
   personasResumenEndpoint: string;
   gestionesEpisodiosEndpoint: string;
+  prediccionNuevosPacientesEndpoint: string;
 }
 
 export interface FileTypeConfig {
@@ -39,6 +40,7 @@ export const getApiConfig = (): ApiConfig => {
       downloadCsvEndpoint: '/api/download-csv',
       personasResumenEndpoint: '/api/gestion/personas/resumen',
       gestionesEpisodiosEndpoint: '/api/gestion/episodios/resumen',
+      prediccionNuevosPacientesEndpoint: '/api/prediccion/nuevos-pacientes',
     };
   } else {
     // Configuración para producción
@@ -50,6 +52,7 @@ export const getApiConfig = (): ApiConfig => {
       downloadCsvEndpoint: import.meta.env.VITE_API_DOWNLOAD_CSV_ENDPOINT || '/api/download-csv',
       personasResumenEndpoint: '/gestion/personas/resumen',
       gestionesEpisodiosEndpoint: '/gestion/episodios/resumen',
+      prediccionNuevosPacientesEndpoint: '/prediccion/nuevos-pacientes',
     };
   }
 };
@@ -110,6 +113,10 @@ export const apiUrls = {
   gestionesEpisodios: (episodio: string) => {
     const baseUrl = buildApiUrl(getApiConfig().gestionesEpisodiosEndpoint);
     return `${baseUrl}?episodio=${episodio}`;
+  },
+  prediccionNuevosPacientes: (persist: boolean = true) => {
+    const baseUrl = buildApiUrl(getApiConfig().prediccionNuevosPacientesEndpoint);
+    return `${baseUrl}?persist=${persist}`;
   },
   // URL dinámica basada en tipo de archivo
   uploadByType: (fileTypeId: string) => {

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { Patient, RiskLevel, GlobalRisk } from '../../types';
+import { Patient, RiskLevel, GlobalRisk, PrediccionNuevoPacienteInput } from '../../types';
+import { PrediccionService } from '../../services/PrediccionService';
+import { PrediccionResultModal } from './PrediccionResultModal';
 
 interface NewPatientModalProps {
   isOpen: boolean;
@@ -14,6 +16,8 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
   onPatientCreated,
 }) => {
   const [loading, setLoading] = useState(false);
+  const [showPrediccionResult, setShowPrediccionResult] = useState(false);
+  const [prediccionResultados, setPrediccionResultados] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     rut: '',
     nombre: '',
@@ -28,6 +32,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
     riesgo_clinico: 'bajo' as RiskLevel,
     riesgo_administrativo: 'bajo' as RiskLevel,
     fecha_estimada_alta: '',
+    codigo_grd: '',
   });
 
   const servicios = [
@@ -66,53 +71,112 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  /**
+   * Convierte fecha a días desde hoy
+   */
+  const convertFechaToDias = (fecha: string): number => {
+    try {
+      const fechaAlta = new Date(fecha);
+      const hoy = new Date();
+      const diffTime = fechaAlta.getTime() - hoy.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays > 0 ? diffDays : 0;
+    } catch {
+      return 0;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const fechaIngreso = new Date();
-    const diasHospitalizacion = calculateHospitalizationDays(fechaIngreso);
-    const nivelRiesgoGlobal = calculateGlobalRisk(
-      formData.riesgo_social,
-      formData.riesgo_clinico,
-      formData.riesgo_administrativo
-    );
+    try {
+      // Primero, llamar al endpoint de predicción
+      const fechaEstimadaDias = formData.fecha_estimada_alta 
+        ? convertFechaToDias(formData.fecha_estimada_alta)
+        : 7; // Default 7 días si no hay fecha
 
-    const fechaNacimiento = new Date();
-    fechaNacimiento.setFullYear(fechaNacimiento.getFullYear() - parseInt(formData.edad));
+      const prediccionInput: PrediccionNuevoPacienteInput = {
+        rut: formData.rut,
+        edad: parseInt(formData.edad),
+        sexo: formData.sexo,
+        servicio_clinico: formData.servicio_clinico,
+        prevision: formData.prevision,
+        fecha_estimada_de_alta: fechaEstimadaDias,
+        riesgo_social: formData.riesgo_social,
+        riesgo_clinico: formData.riesgo_clinico,
+        riesgo_administrativo: formData.riesgo_administrativo,
+        codigo_grd: parseInt(formData.codigo_grd) || 0,
+      };
 
-    const patientData: Patient = {
-      id: `patient_${Date.now()}`,
-      episodio: '',
-      rut: formData.rut,
-      nombre: formData.nombre,
-      apellido_paterno: formData.apellido_paterno,
-      apellido_materno: formData.apellido_materno,
-      fecha_de_nacimiento: fechaNacimiento.toISOString(),
-      edad: parseInt(formData.edad),
-      sexo: formData.sexo,
-      convenio: formData.prevision,
-      nombre_de_la_aseguradora: '',
-      ultima_cama: null,
-      fecha_ingreso: fechaIngreso.toISOString(),
-      fecha_estimada_alta: formData.fecha_estimada_alta,
-      dias_hospitalizacion: diasHospitalizacion,
-      valor_parcial_estadia: '',
-      diagnostico_principal: formData.diagnostico_principal,
-      tipo_cuenta_1: null,
-      tipo_cuenta_2: null,
-      tipo_cuenta_3: null,
-      riesgo_social: formData.riesgo_social,
-      riesgo_clinico: formData.riesgo_clinico,
-      riesgo_administrativo: formData.riesgo_administrativo,
-      nivel_riesgo_global: nivelRiesgoGlobal,
-      estado: 'activo',
-      prevision: formData.prevision,
-      created_at: fechaIngreso.toISOString(),
-      updated_at: fechaIngreso.toISOString(),
-    };
-    
-    onPatientCreated(patientData);
+      // Llamar al endpoint de predicción
+      const prediccionResponse = await PrediccionService.predecirSobreEstadia(
+        [prediccionInput],
+        true // persistir en MongoDB
+      );
+
+      // Mostrar resultados de predicción
+      setPrediccionResultados(prediccionResponse.items);
+      setShowPrediccionResult(true);
+
+      // Crear el paciente después de la predicción
+      const fechaIngreso = new Date();
+      const diasHospitalizacion = calculateHospitalizationDays(fechaIngreso);
+      const nivelRiesgoGlobal = calculateGlobalRisk(
+        formData.riesgo_social,
+        formData.riesgo_clinico,
+        formData.riesgo_administrativo
+      );
+
+      const fechaNacimiento = new Date();
+      fechaNacimiento.setFullYear(fechaNacimiento.getFullYear() - parseInt(formData.edad));
+
+      const patientData: Patient = {
+        id: `patient_${Date.now()}`,
+        episodio: '',
+        rut: formData.rut,
+        nombre: formData.nombre,
+        apellido_paterno: formData.apellido_paterno,
+        apellido_materno: formData.apellido_materno,
+        fecha_de_nacimiento: fechaNacimiento.toISOString(),
+        edad: parseInt(formData.edad),
+        sexo: formData.sexo,
+        convenio: formData.prevision,
+        nombre_de_la_aseguradora: '',
+        ultima_cama: null,
+        fecha_ingreso: fechaIngreso.toISOString(),
+        fecha_estimada_alta: formData.fecha_estimada_alta,
+        dias_hospitalizacion: diasHospitalizacion,
+        valor_parcial_estadia: '',
+        diagnostico_principal: formData.diagnostico_principal,
+        tipo_cuenta_1: null,
+        tipo_cuenta_2: null,
+        tipo_cuenta_3: null,
+        riesgo_social: formData.riesgo_social,
+        riesgo_clinico: formData.riesgo_clinico,
+        riesgo_administrativo: formData.riesgo_administrativo,
+        nivel_riesgo_global: nivelRiesgoGlobal,
+        estado: 'activo',
+        prevision: formData.prevision,
+        created_at: fechaIngreso.toISOString(),
+        updated_at: fechaIngreso.toISOString(),
+      };
+      
+      onPatientCreated(patientData);
+      
+      // Resetear formulario después de mostrar resultados
+      // (no cerrar el modal todavía, esperar a que el usuario cierre el modal de resultados)
+    } catch (error) {
+      console.error('Error al realizar predicción:', error);
+      alert(`Error al realizar la predicción: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClosePrediccionResult = () => {
+    setShowPrediccionResult(false);
+    // Cerrar el modal principal y resetear formulario
     onClose();
     setFormData({
       rut: '',
@@ -128,9 +192,8 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
       riesgo_clinico: 'bajo',
       riesgo_administrativo: 'bajo',
       fecha_estimada_alta: '',
+      codigo_grd: '',
     });
-    
-    setLoading(false);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -284,19 +347,38 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Fecha Estimada de Alta *
-            </label>
-            <input
-              type="date"
-              name="fecha_estimada_alta"
-              value={formData.fecha_estimada_alta}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fecha Estimada de Alta *
+              </label>
+              <input
+                type="date"
+                name="fecha_estimada_alta"
+                value={formData.fecha_estimada_alta}
+                onChange={handleChange}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Código GRD *
+              </label>
+              <input
+                type="number"
+                name="codigo_grd"
+                value={formData.codigo_grd}
+                onChange={handleChange}
+                required
+                min="0"
+                placeholder="Ej: 51401"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Código GRD del paciente (requerido para predicción)
+              </p>
+            </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -383,6 +465,12 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
             </button>
           </div>
         </form>
+
+        <PrediccionResultModal
+          isOpen={showPrediccionResult}
+          onClose={handleClosePrediccionResult}
+          resultados={prediccionResultados}
+        />
       </div>
     </div>
   );

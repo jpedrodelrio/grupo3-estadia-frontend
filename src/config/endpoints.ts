@@ -15,4 +15,8 @@ export const apiUrls = {
     const baseUrl = buildApiUrl(getApiConfig().gestionesEpisodiosEndpoint);
     return `${baseUrl}?episodio=${episodio}`;
   },
+  prediccionNuevosPacientes: (persist: boolean = true) => {
+    const baseUrl = buildApiUrl(getApiConfig().prediccionNuevosPacientesEndpoint);
+    return `${baseUrl}?persist=${persist}`;
+  },
 };
