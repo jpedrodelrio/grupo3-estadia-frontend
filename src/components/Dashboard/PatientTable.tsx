@@ -61,7 +61,28 @@ export const PatientTable: React.FC<PatientTableProps> = ({
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-CL');
+    if (!dateString) return '-';
+    
+    // Si la fecha viene en formato 'YYYY-MM-DD' o 'YYYY-MM-DDTHH:mm:ss', extraer solo la parte de fecha
+    const fechaParte = dateString.split('T')[0];
+    
+    // Verificar si está en formato 'YYYY-MM-DD'
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fechaParte)) {
+      // Convertir de 'YYYY-MM-DD' a 'DD-MM-YYYY' (formato chileno)
+      const [year, month, day] = fechaParte.split('-');
+      return `${day}-${month}-${year}`;
+    }
+    
+    // Si no está en el formato esperado, intentar parsear como Date
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return dateString; // Devolver original si no se puede parsear
+      }
+      return date.toLocaleDateString('es-CL');
+    } catch {
+      return dateString; // Devolver original si hay error
+    }
   };
 
   const getDaysUntilDischarge = (estimatedDischarge: string) => {
@@ -174,7 +195,7 @@ export const PatientTable: React.FC<PatientTableProps> = ({
                 <tr key={patient.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900 font-mono">
-                      {patient.id}
+                      {patient.episodio}
                     </div>
                     <div className="text-xs text-gray-500">
                       ID del episodio

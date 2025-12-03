@@ -40,7 +40,10 @@ export class GestionService {
   /**
    * Obtiene el nombre formateado del tipo de gestión
    */
-  static getTipoGestionName(tipo: string): string {
+  static getTipoGestionName(tipo: string | null | undefined): string {
+    if (!tipo || typeof tipo !== 'string' || tipo.trim() === '') {
+      return 'Sin clasificar';
+    }
     return tipo.charAt(0).toUpperCase() + tipo.slice(1);
   }
 

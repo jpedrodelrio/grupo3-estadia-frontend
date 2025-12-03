@@ -54,7 +54,7 @@ export const getApiConfig = (): ApiConfig => {
   } else {
     // Configuración para producción
     return {
-      baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://18.118.119.175',
+      baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://3.145.155.113',
       ingestEndpoint: import.meta.env.VITE_API_INGEST_ENDPOINT || '/gestion/ingest/csv',
       camasIngestEndpoint: '/camas/ingest/csv',
       processXlsmEndpoint: import.meta.env.VITE_API_PROCESS_XLSM_ENDPOINT || '/process-xlsm',

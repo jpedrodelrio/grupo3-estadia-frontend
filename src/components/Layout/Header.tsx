@@ -1,5 +1,6 @@
 import React from 'react';
-import { Bell, User, Settings, Upload } from 'lucide-react';
+// import { Bell, User, Settings, Upload } from 'lucide-react';
+import { Upload } from 'lucide-react';
 
 interface HeaderProps {
   onOpenUploadModal: () => void;
@@ -7,7 +8,7 @@ interface HeaderProps {
   alertCount: number;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenUploadModal, onOpenNewPatientModal, alertCount }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenUploadModal, onOpenNewPatientModal }) => {
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -52,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenUploadModal, onOpenNewPati
               Nuevo Paciente
             </button>
 
-            <div className="relative">
+            {/* <div className="relative">
               <button className="p-2 text-gray-400 hover:text-gray-500 relative">
                 <Bell className="h-6 w-6" />
                 {alertCount > 0 && (
@@ -61,19 +62,19 @@ export const Header: React.FC<HeaderProps> = ({ onOpenUploadModal, onOpenNewPati
                   </span>
                 )}
               </button>
-            </div>
+            </div> */}
 
-            <div className="flex items-center space-x-2">
+            {/* <div className="flex items-center space-x-2">
               <User className="h-6 w-6 text-gray-400" />
               <div className="text-sm">
                 <p className="text-gray-900 font-medium">Dr. Juan Pérez</p>
                 <p className="text-gray-500">Gestor de Estadía</p>
               </div>
-            </div>
+            </div> */}
 
-            <button className="p-2 text-gray-400 hover:text-gray-500">
+            {/* <button className="p-2 text-gray-400 hover:text-gray-500">
               <Settings className="h-6 w-6" />
-            </button>
+            </button> */}
           </div>
         </div>
       </div>

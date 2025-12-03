@@ -66,7 +66,7 @@ export const usePatients = (): UsePatientsReturn => {
    * Carga pacientes desde diferentes fuentes con prioridad al endpoint
    * Carga TODOS los pacientes de una vez (sin paginación)
    */
-  const loadPatients = useCallback(async (page: number = 1, limit: number = 1000) => {
+  const loadPatients = useCallback(async (page: number = 1, limit: number = 10000) => {
     setLoading(true);
     setError(null);
 
@@ -173,12 +173,36 @@ export const usePatients = (): UsePatientsReturn => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Dependencias vacías para ejecutar solo al montar
 
-  // Convertir personas a pacientes cuando lleguen los datos
+  // Convertir personas a pacientes cuando lleguen los datos y ordenarlos por fecha de ingreso
   useEffect(() => {
     if (personas.length > 0) {
       console.log(`🔄 Convirtiendo ${personas.length} personas a pacientes...`);
-      const convertedPatients = PatientService.convertPersonasToPatients(personas);
-      console.log(`✅ Convertidos ${convertedPatients.length} pacientes del endpoint`);
+      
+      // Ordenar las personas ANTES de convertirlas usando el campo fecha_admision original
+      // IMPORTANTE: Comparar directamente en formato 'YYYY-MM-DD' de la base de datos
+      // SIN convertir a formato chileno ni a objetos Date
+      const personasOrdenadas = [...personas].sort((a, b) => {
+        // Obtener fecha_admision directamente de la base de datos (formato 'YYYY-MM-DD')
+        const fechaA = a.fecha_admision || '';
+        const fechaB = b.fecha_admision || '';
+        
+        // Si ambas fechas están vacías, mantener el orden original
+        if (!fechaA && !fechaB) return 0;
+        // Sin fecha va al final
+        if (!fechaA) return 1;
+        if (!fechaB) return -1;
+        
+        // Comparar directamente como strings en formato 'YYYY-MM-DD' de la base de datos
+        // NO convertir a Date ni a formato chileno - comparación directa de strings
+        // El formato 'YYYY-MM-DD' permite comparación lexicográfica correcta
+        // Orden descendente: más recientes primero (2025-12-09 > 2025-12-08)
+        return fechaB.localeCompare(fechaA);
+      });
+      
+      // Convertir las personas ya ordenadas a pacientes
+      const convertedPatients = PatientService.convertPersonasToPatients(personasOrdenadas);
+      
+      console.log(`✅ Convertidos ${convertedPatients.length} pacientes del endpoint y ordenados por fecha de ingreso (más recientes primero)`);
       setPatients(convertedPatients);
     }
   }, [personas]);
