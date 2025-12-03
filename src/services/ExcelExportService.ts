@@ -55,7 +55,9 @@ export class ExcelExportService {
       ['Riesgo Social', patient.riesgo_social ? patient.riesgo_social.charAt(0).toUpperCase() + patient.riesgo_social.slice(1) : ''],
       ['Riesgo Clínico', patient.riesgo_clinico ? patient.riesgo_clinico.charAt(0).toUpperCase() + patient.riesgo_clinico.slice(1) : ''],
       ['Riesgo Administrativo', patient.riesgo_administrativo ? patient.riesgo_administrativo.charAt(0).toUpperCase() + patient.riesgo_administrativo.slice(1) : ''],
-      ['Nivel Riesgo Global', patient.nivel_riesgo_global ? patient.nivel_riesgo_global.charAt(0).toUpperCase() + patient.nivel_riesgo_global.slice(1) : ''],
+      ['Nivel Riesgo Global', patient.nivel_riesgo_global ? 
+        (patient.nivel_riesgo_global === 'rojo' ? 'Alto' : 
+         patient.nivel_riesgo_global === 'amarillo' ? 'Medio' : 'Bajo') : ''],
       ['', ''],
       ['Diagnóstico Principal', patient.diagnostico_principal || ''],
     ];

@@ -134,9 +134,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Todos los riesgos</option>
-            <option value="verde">Verde (Bajo)</option>
-            <option value="amarillo">Amarillo (Medio)</option>
-            <option value="rojo">Rojo (Alto)</option>
+            <option value="verde">Bajo</option>
+            <option value="amarillo">Medio</option>
+            <option value="rojo">Alto</option>
           </select>
         </div>
 

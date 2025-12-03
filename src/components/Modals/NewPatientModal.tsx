@@ -24,7 +24,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
     nombre: '',
     apellido_paterno: '',
     apellido_materno: '',
-    edad: '',
+    fecha_de_nacimiento: '',
     sexo: 'M' as 'M' | 'F',
     servicio_clinico: '',
     diagnostico_principal: '',
@@ -89,6 +89,25 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
     const today = new Date();
     const diffTime = today.getTime() - fechaIngreso.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  /**
+   * Calcula la edad desde la fecha de nacimiento
+   */
+  const calculateAge = (fechaNacimiento: string): number => {
+    if (!fechaNacimiento) return 0;
+    try {
+      const nacimiento = new Date(fechaNacimiento);
+      const hoy = new Date();
+      let edad = hoy.getFullYear() - nacimiento.getFullYear();
+      const mesDiff = hoy.getMonth() - nacimiento.getMonth();
+      if (mesDiff < 0 || (mesDiff === 0 && hoy.getDate() < nacimiento.getDate())) {
+        edad--;
+      }
+      return edad;
+    } catch {
+      return 0;
+    }
   };
 
   /**
@@ -179,6 +198,14 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
     setLoading(true);
 
     try {
+      // Calcular edad desde la fecha de nacimiento
+      const edad = calculateAge(formData.fecha_de_nacimiento);
+      if (edad <= 0 || edad > 150) {
+        alert('Por favor ingrese una fecha de nacimiento válida');
+        setLoading(false);
+        return;
+      }
+
       // Primero, llamar al endpoint de predicción
       const fechaEstimadaDias = formData.fecha_estimada_alta 
         ? convertFechaToDias(formData.fecha_estimada_alta)
@@ -186,7 +213,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
 
       const prediccionInput: PrediccionNuevoPacienteInput = {
         rut: formData.rut,
-        edad: parseInt(formData.edad),
+        edad: edad,
         sexo: formData.sexo,
         servicio_clinico: formData.servicio_clinico,
         prevision: formData.prevision,
@@ -216,8 +243,8 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
         formData.riesgo_administrativo
       );
 
-      const fechaNacimiento = new Date();
-      fechaNacimiento.setFullYear(fechaNacimiento.getFullYear() - parseInt(formData.edad));
+      // Usar la fecha de nacimiento ingresada directamente
+      const fechaNacimiento = new Date(formData.fecha_de_nacimiento);
 
       // Generar episodio único para el paciente
       const episodio = generarEpisodio(formData.rut);
@@ -232,7 +259,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
         apellido_paterno: formData.apellido_paterno,
         apellido_materno: formData.apellido_materno,
         fecha_de_nacimiento: fechaNacimiento.toISOString(),
-        edad: parseInt(formData.edad),
+        edad: edad,
         sexo: formData.sexo,
         convenio: formData.prevision,
         nombre_de_la_aseguradora: '',
@@ -328,7 +355,7 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
       nombre: '',
       apellido_paterno: '',
       apellido_materno: '',
-      edad: '',
+      fecha_de_nacimiento: '',
       sexo: 'M',
       servicio_clinico: '',
       diagnostico_principal: '',
@@ -438,18 +465,22 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Edad *
+                Fecha de Nacimiento *
               </label>
               <input
-                type="number"
-                name="edad"
-                value={formData.edad}
+                type="date"
+                name="fecha_de_nacimiento"
+                value={formData.fecha_de_nacimiento}
                 onChange={handleChange}
                 required
-                min="0"
-                max="150"
+                max={new Date().toISOString().split('T')[0]} // No permitir fechas futuras
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              {formData.fecha_de_nacimiento && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Edad: {calculateAge(formData.fecha_de_nacimiento)} años
+                </p>
+              )}
             </div>
 
             <div>

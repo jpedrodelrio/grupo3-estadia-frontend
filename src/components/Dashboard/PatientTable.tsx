@@ -51,6 +51,15 @@ export const PatientTable: React.FC<PatientTableProps> = ({
     }
   };
 
+  const getRiskLabel = (risk: string): string => {
+    switch (risk) {
+      case 'rojo': return 'Alto';
+      case 'amarillo': return 'Medio';
+      case 'verde': return 'Bajo';
+      default: return risk.charAt(0).toUpperCase() + risk.slice(1);
+    }
+  };
+
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case 'activo': return 'bg-blue-100 text-blue-800';
@@ -170,9 +179,9 @@ export const PatientTable: React.FC<PatientTableProps> = ({
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Días Hospitalizado
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Convenio-Isapre
-              </th>
+              </th> */}
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Alta Estimada
               </th>
@@ -234,10 +243,10 @@ export const PatientTable: React.FC<PatientTableProps> = ({
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  {/* <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{patient.convenio || 'No disponible'}</div>
                     <div className="text-sm text-gray-500">{patient.nombre_de_la_aseguradora || 'No disponible'}</div>
-                  </td>
+                  </td> */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
                       {formatDate(patient.fecha_estimada_alta)}
@@ -251,7 +260,7 @@ export const PatientTable: React.FC<PatientTableProps> = ({
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRiskBadgeColor(patient.nivel_riesgo_global)}`}>
                       {patient.nivel_riesgo_global === 'rojo' && <AlertCircle className="h-3 w-3 mr-1" />}
-                      {patient.nivel_riesgo_global.charAt(0).toUpperCase() + patient.nivel_riesgo_global.slice(1)}
+                      {getRiskLabel(patient.nivel_riesgo_global)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
