@@ -796,7 +796,7 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                       'bg-red-100 text-red-800'
                     }`}>
                       {patient.nivel_riesgo_global === 'rojo' && <AlertTriangle className="h-4 w-4 mr-1" />}
-                      Global: {patient.nivel_riesgo_global.charAt(0).toUpperCase() + patient.nivel_riesgo_global.slice(1)}
+                      Global: {patient.nivel_riesgo_global === 'rojo' ? 'Alto' : patient.nivel_riesgo_global === 'amarillo' ? 'Medio' : 'Bajo'}
                     </div>
                   </div>
                 </div>
