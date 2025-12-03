@@ -39,11 +39,15 @@ export type {
   User,
   GRDReference,
   SocialRiskPrediction,
+  PrediccionNuevoPacienteInput,
+  PrediccionNuevoPacienteResponse,
+  PrediccionNuevosPacientesResponse,
   AlertType,
   AlertLevel,
   UserRole,
   ComplexityLevel,
   RiskPredictionLevel,
+  RiesgoCategoria,
 } from './system';
 
 // Tipos de gestiones (endpoint)

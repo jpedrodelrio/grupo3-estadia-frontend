@@ -36,9 +36,53 @@ export interface SocialRiskPrediction {
   fecha_evaluacion: string;
 }
 
+/**
+ * Datos de entrada para predicción de sobre-estadía
+ */
+export interface PrediccionNuevoPacienteInput {
+  rut: string;
+  edad: number;
+  sexo: string; // M/F, Hombre/Mujer, masculino/femenino
+  servicio_clinico: string;
+  prevision: string;
+  fecha_estimada_de_alta: number | string; // días o fecha
+  riesgo_social: number | string; // 0/1/2 o Bajo/Medio/Alto
+  riesgo_clinico: number | string;
+  riesgo_administrativo: number | string;
+  codigo_grd: number;
+}
+
+/**
+ * Respuesta de predicción de sobre-estadía
+ */
+export interface PrediccionNuevoPacienteResponse {
+  rut: string;
+  edad: number;
+  sexo: string;
+  servicio_clinico: string;
+  prevision: string;
+  fecha_estimada_de_alta: number | string;
+  riesgo_social: number | string;
+  riesgo_clinico: number | string;
+  riesgo_administrativo: number | string;
+  codigo_grd: number;
+  probabilidad_sobre_estadia: number; // 0-1
+  riesgo_categoria: 'Baja' | 'Media' | 'Alta';
+  created_at: string;
+}
+
+/**
+ * Respuesta del endpoint de predicción
+ */
+export interface PrediccionNuevosPacientesResponse {
+  count: number;
+  items: PrediccionNuevoPacienteResponse[];
+}
+
 // Tipos auxiliares
 export type AlertType = 'estadia_prolongada' | 'riesgo_social' | 'riesgo_clinico' | 'riesgo_administrativo';
 export type AlertLevel = 'amarillo' | 'rojo';
 export type UserRole = 'gestor_estadia' | 'trabajador_social' | 'analista' | 'jefe_servicio' | 'admin';
 export type ComplexityLevel = 'baja' | 'media' | 'alta';
 export type RiskPredictionLevel = 'bajo' | 'medio' | 'alto' | 'critico';
+export type RiesgoCategoria = 'Baja' | 'Media' | 'Alta';

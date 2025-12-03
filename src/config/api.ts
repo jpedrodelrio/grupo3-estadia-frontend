@@ -16,6 +16,7 @@ interface ApiConfig {
   gestionEstadiasEndpoint: string;
   gestorasEndpoint: string;
   tareasEndpoint: string;
+  prediccionNuevosPacientesEndpoint: string;
 }
 
 export interface FileTypeConfig {
@@ -48,11 +49,12 @@ export const getApiConfig = (): ApiConfig => {
       gestionEstadiasEndpoint: '/api/gestion/estadias',
       gestorasEndpoint: '/api/tareas/gestoras',
       tareasEndpoint: '/api/tareas',
+      prediccionNuevosPacientesEndpoint: '/api/prediccion/nuevos-pacientes',
     };
   } else {
     // Configuración para producción
     return {
-      baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://3.135.182.158',
+      baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://3.145.155.113',
       ingestEndpoint: import.meta.env.VITE_API_INGEST_ENDPOINT || '/gestion/ingest/csv',
       camasIngestEndpoint: '/camas/ingest/csv',
       processXlsmEndpoint: import.meta.env.VITE_API_PROCESS_XLSM_ENDPOINT || '/process-xlsm',
@@ -62,6 +64,7 @@ export const getApiConfig = (): ApiConfig => {
       gestionEstadiasEndpoint: '/gestion/estadias',
       gestorasEndpoint: '/tareas/gestoras',
       tareasEndpoint: '/tareas',
+      prediccionNuevosPacientesEndpoint: '/prediccion/nuevos-pacientes',
     };
   }
 };
@@ -162,6 +165,11 @@ export const apiUrls = {
     const baseUrl = buildApiUrl(getApiConfig().tareasEndpoint);
     return `${baseUrl}/${taskId}`;
   },
+  prediccionNuevosPacientes: (persist: boolean = true) => {
+    const baseUrl = buildApiUrl(getApiConfig().prediccionNuevosPacientesEndpoint);
+    return `${baseUrl}?persist=${persist}`;
+  },
+  
   // URL dinámica basada en tipo de archivo
   uploadByType: (fileTypeId: string) => {
     const config = getFileTypeConfig(fileTypeId);

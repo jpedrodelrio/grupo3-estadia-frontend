@@ -15,7 +15,32 @@ export class PatientService {
     const edad = hoy.getFullYear() - fechaNacimiento.getFullYear();
     
     // Calcular fecha de ingreso y alta estimada
-    const fechaAdmision = persona.fecha_admision ? new Date(persona.fecha_admision) : new Date();
+    // La fecha viene en formato 'YYYY-MM-DD' desde la base de datos
+    // Mantener el formato original para evitar problemas de zona horaria
+    let fechaIngresoISO: string;
+    let fechaAdmisionDate: Date;
+    
+    if (persona.fecha_admision) {
+      // Si la fecha viene en formato 'YYYY-MM-DD', crear Date en UTC para evitar problemas de zona horaria
+      const fechaParts = persona.fecha_admision.split('-');
+      if (fechaParts.length === 3) {
+        // Crear fecha en UTC para evitar cambios por zona horaria
+        fechaAdmisionDate = new Date(Date.UTC(
+          parseInt(fechaParts[0]), // año
+          parseInt(fechaParts[1]) - 1, // mes (0-indexed)
+          parseInt(fechaParts[2]) // día
+        ));
+        // Mantener el formato original 'YYYY-MM-DD' para fecha_ingreso
+        fechaIngresoISO = persona.fecha_admision;
+      } else {
+        fechaAdmisionDate = new Date(persona.fecha_admision);
+        fechaIngresoISO = fechaAdmisionDate.toISOString().split('T')[0];
+      }
+    } else {
+      fechaAdmisionDate = new Date();
+      fechaIngresoISO = fechaAdmisionDate.toISOString().split('T')[0];
+    }
+    
     const fechaAlta = persona.fecha_alta ? new Date(persona.fecha_alta) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     
     // Determinar estado basado en fecha de alta
@@ -23,7 +48,7 @@ export class PatientService {
     
     // Calcular días de hospitalización
     const diasHospitalizacion = persona.dias_hospitalizacion || 
-      Math.ceil((hoy.getTime() - fechaAdmision.getTime()) / (1000 * 60 * 60 * 24));
+      Math.ceil((hoy.getTime() - fechaAdmisionDate.getTime()) / (1000 * 60 * 60 * 24));
     
     return {
       episodio: persona.episodio,
@@ -38,7 +63,7 @@ export class PatientService {
       convenio: persona.convenio || '-',
       nombre_de_la_aseguradora: persona.nombre_de_la_aseguradora || '-',
       ultima_cama: persona.ultima_cama,
-      fecha_ingreso: fechaAdmision.toISOString(),
+      fecha_ingreso: fechaIngresoISO,
       fecha_estimada_alta: fechaAlta.toISOString(),
       dias_hospitalizacion: diasHospitalizacion,
       valor_parcial_estadia: persona.valor_parcial || '-',
@@ -52,7 +77,7 @@ export class PatientService {
       nivel_riesgo_global: this.calculateRiskLevel(diasHospitalizacion),
       estado: estado,
       prevision: persona.convenio !== '#N/D' ? persona.convenio || '-' : 'FONASA',
-      created_at: fechaAdmision.toISOString(),
+      created_at: fechaAdmisionDate.toISOString(),
       updated_at: hoy.toISOString(),
     };
   }

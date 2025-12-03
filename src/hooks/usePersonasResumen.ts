@@ -36,7 +36,7 @@ export const usePersonasResumen = (): UsePersonasResumenState & UsePersonasResum
   const hasNextPage = currentPage < totalPages;
   const hasPreviousPage = currentPage > 1;
 
-  const fetchPersonasResumen = useCallback(async (page: number = 1, limit: number = 1000) => {
+  const fetchPersonasResumen = useCallback(async (page: number = 1, limit: number = 10000) => {
     setLoading(true);
     setError(null);
     
