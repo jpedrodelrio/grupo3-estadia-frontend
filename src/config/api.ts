@@ -2,6 +2,9 @@
  * Configuración de la aplicación basada en variables de entorno
  */
 
+import { TaskFilters } from '../hooks/useTasks';
+import { buildUrlWithParams } from '../utils/queryParams';
+
 interface ApiConfig {
   baseUrl: string;
   ingestEndpoint: string;
@@ -10,6 +13,9 @@ interface ApiConfig {
   downloadCsvEndpoint: string;
   personasResumenEndpoint: string;
   gestionesEpisodiosEndpoint: string;
+  gestionEstadiasEndpoint: string;
+  gestorasEndpoint: string;
+  tareasEndpoint: string;
   prediccionNuevosPacientesEndpoint: string;
 }
 
@@ -40,18 +46,24 @@ export const getApiConfig = (): ApiConfig => {
       downloadCsvEndpoint: '/api/download-csv',
       personasResumenEndpoint: '/api/gestion/personas/resumen',
       gestionesEpisodiosEndpoint: '/api/gestion/episodios/resumen',
+      gestionEstadiasEndpoint: '/api/gestion/estadias',
+      gestorasEndpoint: '/api/tareas/gestoras',
+      tareasEndpoint: '/api/tareas',
       prediccionNuevosPacientesEndpoint: '/api/prediccion/nuevos-pacientes',
     };
   } else {
     // Configuración para producción
     return {
-      baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://3.135.182.158',
+      baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://18.118.119.175',
       ingestEndpoint: import.meta.env.VITE_API_INGEST_ENDPOINT || '/gestion/ingest/csv',
       camasIngestEndpoint: '/camas/ingest/csv',
       processXlsmEndpoint: import.meta.env.VITE_API_PROCESS_XLSM_ENDPOINT || '/process-xlsm',
       downloadCsvEndpoint: import.meta.env.VITE_API_DOWNLOAD_CSV_ENDPOINT || '/api/download-csv',
       personasResumenEndpoint: '/gestion/personas/resumen',
       gestionesEpisodiosEndpoint: '/gestion/episodios/resumen',
+      gestionEstadiasEndpoint: '/gestion/estadias',
+      gestorasEndpoint: '/tareas/gestoras',
+      tareasEndpoint: '/tareas',
       prediccionNuevosPacientesEndpoint: '/prediccion/nuevos-pacientes',
     };
   }
@@ -106,18 +118,58 @@ export const apiUrls = {
   camasIngest: () => buildApiUrl(getApiConfig().camasIngestEndpoint),
   processXlsm: () => buildApiUrl(getApiConfig().processXlsmEndpoint),
   downloadCsv: (filename: string) => buildApiUrl(`${getApiConfig().downloadCsvEndpoint}/${filename}`),
-  personasResumen: (page: number = 1, limit: number = 20) => {
+  personasResumen: (page: number = 1, limit: number = 20, search?: string) => {
     const baseUrl = buildApiUrl(getApiConfig().personasResumenEndpoint);
-    return `${baseUrl}?page=${page}&limit=${limit}`;
+    let url = `${baseUrl}?page=${page}&limit=${limit}`;
+    if (search && search.trim() !== '') {
+      url += `&search=${encodeURIComponent(search.trim())}`;
+    }
+    return url;
   },
   gestionesEpisodios: (episodio: string) => {
     const baseUrl = buildApiUrl(getApiConfig().gestionesEpisodiosEndpoint);
     return `${baseUrl}?episodio=${episodio}`;
   },
+  createGestion: () => buildApiUrl(getApiConfig().gestionEstadiasEndpoint),
+  updateGestion: (episodio: string, registroId: string) => {
+    const baseUrl = buildApiUrl(getApiConfig().gestionEstadiasEndpoint);
+    return `${baseUrl}/${episodio}/${registroId}`;
+  },
+  deleteGestion: (episodio: string, registroId: string) => {
+    const baseUrl = buildApiUrl(getApiConfig().gestionEstadiasEndpoint);
+    return `${baseUrl}/${episodio}/${registroId}`;
+  },
+    
+  gestoras: () => {
+    return buildApiUrl(getApiConfig().gestorasEndpoint);
+  },
+  tareas: (filters?: TaskFilters) => {
+    const baseUrl = buildApiUrl(getApiConfig().tareasEndpoint);
+    
+    if (!filters) {
+      return baseUrl;
+    }
+    
+    // Construir parámetros usando el helper
+    return buildUrlWithParams(baseUrl, {
+      status: filters.status,
+      prioridad: filters.prioridad,
+      gestor: filters.gestor,
+      tipo: filters.tipo,
+      paciente_episodio: filters.paciente_episodio,
+      limit: filters.limit,
+      skip: filters.skip,
+    });
+  },
+  tareaById: (taskId: string) => {
+    const baseUrl = buildApiUrl(getApiConfig().tareasEndpoint);
+    return `${baseUrl}/${taskId}`;
+  },
   prediccionNuevosPacientes: (persist: boolean = true) => {
     const baseUrl = buildApiUrl(getApiConfig().prediccionNuevosPacientesEndpoint);
     return `${baseUrl}?persist=${persist}`;
   },
+  
   // URL dinámica basada en tipo de archivo
   uploadByType: (fileTypeId: string) => {
     const config = getFileTypeConfig(fileTypeId);

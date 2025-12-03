@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Layout/Header';
 import { StatsCards } from './components/Dashboard/StatsCards';
 import { OperationalDashboard } from './components/Dashboard/OperationalDashboard';
 import { TaskManagement } from './components/Dashboard/TaskManagement';
-import { SocialRiskPredictor } from './components/Dashboard/SocialRiskPredictor';
+// Ocultado temporalmente
+// import { SocialRiskPredictor } from './components/Dashboard/SocialRiskPredictor';
 import { AlertsPanel } from './components/Dashboard/AlertsPanel';
 import { FilterPanel } from './components/Dashboard/FilterPanel';
 import { PatientTable } from './components/Dashboard/PatientTable';
@@ -13,9 +14,9 @@ import { UploadModal } from './components/Modals/UploadModal';
 import { Patient, Task } from './types';
 import { usePatients } from './hooks/usePatients';
 import { useGestionesResumen } from './hooks/useGestionesResumen';
+import { useTasks, TaskFilters } from './hooks/useTasks';
 
 function App() {
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
   const [activeView, setActiveView] = useState<'dashboard' | 'patients' | 'tasks' | 'predictions'>('dashboard');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -49,9 +50,28 @@ function App() {
     diagnosticoOptions,
   } = useGestionesResumen();
 
+  // Hook tareas (API)
+  const {
+    tasks: tasksFromAPI,
+    fetchTasks,
+    createTask: createTaskAPI,
+    updateTask: updateTaskAPI,
+    deleteTask: deleteTaskAPI,
+    loading: tasksLoading,
+    error: tasksError,
+  } = useTasks();
+
+  // Ref para evitar cargar tareas múltiples veces
+  const hasLoadedTasksRef = useRef(false);
+
+  // Cargar tareas solo una vez al montar el componente
   useEffect(() => {
-    loadSampleTasks();
-  }, []);
+    if (!hasLoadedTasksRef.current) {
+      hasLoadedTasksRef.current = true;
+      fetchTasks();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Array vacío para ejecutar solo una vez
 
   useEffect(() => {
     fetchAllGestiones();
@@ -61,68 +81,6 @@ function App() {
     applyFilters();
   }, [patients, searchTerm, convenienceFilter, riskFilter, statusFilter, gestionTypeFilter, diagnosticoFilter, episodios]);
 
-  const loadSampleTasks = () => {
-    // Datos de ejemplo para tareas
-    const sampleTasks: Task[] = [
-      {
-        id: '1',
-        patient_id: '1',
-        assigned_to: 'María Rodríguez',
-        assigned_role: 'trabajador_social',
-        tipo_tarea: 'social' as const,
-        titulo: 'Evaluación socioeconómica urgente',
-        descripcion: 'Paciente de 65 años requiere evaluación de condiciones habitacionales y red de apoyo familiar para planificar alta.',
-        prioridad: 'alta' as const,
-        estado: 'pendiente' as const,
-        fecha_vencimiento: '2025-01-15T12:00:00Z',
-        created_at: '2025-01-13T08:00:00Z',
-        updated_at: '2025-01-13T08:00:00Z',
-      },
-      {
-        id: '2',
-        patient_id: '2',
-        assigned_to: 'Dr. Carlos Mendoza',
-        assigned_role: 'jefe_servicio',
-        tipo_tarea: 'clinica' as const,
-        titulo: 'Revisión de protocolo post-infarto',
-        descripcion: 'Evaluar evolución clínica y definir plan de rehabilitación cardíaca ambulatoria.',
-        prioridad: 'alta' as const,
-        estado: 'en_progreso' as const,
-        fecha_vencimiento: '2025-01-16T10:00:00Z',
-        created_at: '2025-01-12T14:00:00Z',
-        updated_at: '2025-01-13T09:30:00Z',
-      },
-      {
-        id: '3',
-        patient_id: '3',
-        assigned_to: 'Ana Morales',
-        assigned_role: 'analista',
-        tipo_tarea: 'administrativa' as const,
-        titulo: 'Verificación de cobertura FONASA',
-        descripcion: 'Confirmar cobertura para procedimientos post-quirúrgicos y medicamentos de alta.',
-        prioridad: 'media' as const,
-        estado: 'completada' as const,
-        fecha_vencimiento: '2025-01-14T16:00:00Z',
-        created_at: '2025-01-11T11:00:00Z',
-        updated_at: '2025-01-13T15:45:00Z',
-      },
-      {
-        id: '4',
-        patient_id: '4',
-        assigned_to: 'Equipo Multidisciplinario',
-        assigned_role: 'gestor_estadia',
-        tipo_tarea: 'coordinacion' as const,
-        titulo: 'Coordinación alta compleja UCI',
-        descripcion: 'Coordinar con familia, trabajo social y equipo médico para alta segura de paciente crítico.',
-        prioridad: 'critica' as const,
-        estado: 'pendiente' as const,
-        fecha_vencimiento: '2025-01-14T08:00:00Z',
-        created_at: '2025-01-10T20:00:00Z',
-        updated_at: '2025-01-13T18:00:00Z',
-      },
-    ];
-    setTasks(sampleTasks);
-  };
 
   const applyFilters = () => {
     let filtered = [...patients];
@@ -186,23 +144,75 @@ function App() {
     addPatient(newPatient);
   };
 
-  const handleCreateTask = (newTask: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
-    const task: Task = {
-      ...newTask,
-      id: Date.now().toString(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    setTasks([task, ...tasks]);
+  const handleCreateTask = async (newTask: Omit<Task, 'id' | 'created_at' | 'updated_at'>): Promise<Task | null> => {
+    // Llamar al API para crear la tarea
+    const createdTask = await createTaskAPI({
+      paciente_episodio: newTask.paciente_episodio,
+      gestor: newTask.gestor,
+      tipo: newTask.tipo,
+      prioridad: newTask.prioridad,
+      titulo: newTask.titulo,
+      status: newTask.status,
+      rol: newTask.rol,
+      descripcion: newTask.descripcion,
+      fecha_inicio: newTask.fecha_inicio,
+      fecha_vencimiento: newTask.fecha_vencimiento,
+    });
+
+    if (createdTask) {
+      // Recargar TODAS las tareas sin filtros para que aparezcan en el dashboard
+      await fetchTasks();
+      return createdTask;
+    } else {
+      // Si hay error, se maneja en el hook useTasks
+      console.error('Error al crear tarea:', tasksError);
+      return null;
+    }
   };
 
-  const handleUpdateTask = (taskId: string, updates: Partial<Task>) => {
-    setTasks(tasks.map(task => 
-      task.id === taskId 
-        ? { ...task, ...updates, updated_at: new Date().toISOString() }
-        : task
-    ));
+  const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
+    // Llamar al API para actualizar la tarea
+    const updatedTask = await updateTaskAPI(taskId, {
+      paciente_episodio: updates.paciente_episodio,
+      gestor: updates.gestor,
+      tipo: updates.tipo,
+      prioridad: updates.prioridad,
+      titulo: updates.titulo,
+      status: updates.status,
+      rol: updates.rol,
+      descripcion: updates.descripcion,
+      fecha_inicio: updates.fecha_inicio,
+      fecha_vencimiento: updates.fecha_vencimiento,
+    });
+
+    if (updatedTask) {
+      // Recargar TODAS las tareas sin filtros para que se actualicen en el dashboard
+      await fetchTasks();
+    } else {
+      // Si hay error, se maneja en el hook useTasks
+      console.error('Error al actualizar tarea:', tasksError);
+    }
   };
+
+  const handleDeleteTask = async (taskId: string): Promise<boolean> => {
+    // Llamar al API para eliminar la tarea
+    const deleted = await deleteTaskAPI(taskId);
+
+    if (deleted) {
+      // Recargar TODAS las tareas sin filtros para que se actualicen en el dashboard
+      await fetchTasks();
+      return true;
+    } else {
+      // Si hay error, se maneja en el hook useTasks
+      console.error('Error al eliminar tarea:', tasksError);
+      return false;
+    }
+  };
+
+  // Memoizar la función de cambio de filtros para evitar loops
+  const handleFiltersChange = useCallback(async (filters: TaskFilters) => {
+    await fetchTasks(filters);
+  }, [fetchTasks]);
 
   const alertCount = getPatientStats().riesgoRojo;
 
@@ -260,7 +270,8 @@ function App() {
             >
               Coordinación de Equipos
             </button>
-            <button
+            {/* Ocultado temporalmente */}
+            {/* <button
               onClick={() => setActiveView('predictions')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeView === 'predictions'
@@ -269,7 +280,7 @@ function App() {
               }`}
             >
               Predicción de Riesgo Social
-            </button>
+            </button> */}
           </nav>
         </div>
       </div>
@@ -283,7 +294,7 @@ function App() {
                 Visibilidad en tiempo real del estado de pacientes, tareas y barreras de alta
               </p>
             </div>
-            <OperationalDashboard patients={patients} tasks={tasks} />
+            <OperationalDashboard patients={patients} tasks={tasksFromAPI} />
           </>
         )}
 
@@ -330,16 +341,20 @@ function App() {
 
         {activeView === 'tasks' && (
           <TaskManagement
-            tasks={tasks}
+            tasks={tasksFromAPI}
             patients={patients}
             onCreateTask={handleCreateTask}
             onUpdateTask={handleUpdateTask}
+            onDeleteTask={handleDeleteTask}
+            onFiltersChange={handleFiltersChange}
+            loading={tasksLoading}
           />
         )}
 
-        {activeView === 'predictions' && (
+        {/* Ocultado temporalmente */}
+        {/* {activeView === 'predictions' && (
           <SocialRiskPredictor patients={patients} />
-        )}
+        )} */}
       </main>
 
       <PatientDetailModal

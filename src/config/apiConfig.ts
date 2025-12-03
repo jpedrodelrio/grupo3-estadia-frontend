@@ -9,6 +9,9 @@ export interface ApiConfig {
   downloadCsvEndpoint: string;
   personasResumenEndpoint: string;
   gestionesEpisodiosEndpoint: string;
+  gestionEstadiasEndpoint: string;
+  gestorasEndpoint: string;
+  tareasEndpoint: string;
   prediccionNuevosPacientesEndpoint: string;
 }
 
@@ -22,6 +25,9 @@ export const getApiConfig = (): ApiConfig => {
       downloadCsvEndpoint: '/api/download-csv',
       personasResumenEndpoint: '/api/gestion/personas/resumen',
       gestionesEpisodiosEndpoint: '/api/gestion/episodios/resumen',
+      gestionEstadiasEndpoint: '/api/gestion/estadias',
+      gestorasEndpoint: '/api/tareas/gestoras',
+      tareasEndpoint: '/api/tareas',
       prediccionNuevosPacientesEndpoint: '/api/prediccion/nuevos-pacientes',
     };
   }
@@ -34,6 +40,9 @@ export const getApiConfig = (): ApiConfig => {
     downloadCsvEndpoint: ENV.prodDownloadCsvEndpoint,
     personasResumenEndpoint: '/gestion/personas/resumen',
     gestionesEpisodiosEndpoint: '/gestion/episodios/resumen',
+    gestionEstadiasEndpoint: '/gestion/estadias',
+    gestorasEndpoint: '/api/tareas/gestoras',
+    tareasEndpoint: '/api/tareas',
     prediccionNuevosPacientesEndpoint: '/prediccion/nuevos-pacientes',
   };
 };
