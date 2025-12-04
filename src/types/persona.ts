@@ -18,6 +18,11 @@ export interface PersonaResumen {
   ultima_cama: string | null;
   rut: string;
   fecha_alta: string | null;
+  prob_sobre_estadia: number | null;
+  grd_code: string | null;
+  riesgo_social: string | null;
+  riesgo_clinico: string | null;
+  riesgo_administrativo: string | null;
 }
 
 export interface PersonasResumenResponse {

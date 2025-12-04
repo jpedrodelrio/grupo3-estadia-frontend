@@ -23,14 +23,16 @@ export interface Patient {
   tipo_cuenta_1: string | null;
   tipo_cuenta_2: string | null;
   tipo_cuenta_3: string | null;
-  riesgo_social: 'bajo' | 'medio' | 'alto';
-  riesgo_clinico: 'bajo' | 'medio' | 'alto';
-  riesgo_administrativo: 'bajo' | 'medio' | 'alto';
-  nivel_riesgo_global: 'verde' | 'amarillo' | 'rojo';
+  riesgo_social: string;
+  riesgo_clinico: string;
+  riesgo_administrativo: string;
+  nivel_riesgo_global: string;
   estado: 'activo' | 'alta_pendiente' | 'dado_alta';
   prevision: string;
   created_at: string;
   updated_at: string;
+  prob_sobre_estadia: number | null;
+  grd_code: string | null;
 }
 
 export interface PatientNote {
