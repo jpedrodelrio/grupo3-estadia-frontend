@@ -66,7 +66,7 @@ export interface UseGestionesState {
  */
 export interface CreateGestionData {
   episodio: string;
-  marca_temporal: string;
+  marca_temporal?: string; // Opcional en algunos casos
   nombre: string;
   tipo_cuenta_1: string;
   status?: string | null;
@@ -111,5 +111,12 @@ export interface CreateGestionData {
   texto_libre_causa_rechazo?: string | null;
   run?: string | null;
   rut?: string | null;
+  // Nuevos campos del endpoint
+  riesgo_social?: string | null;
+  riesgo_clinico?: string | null;
+  riesgo_administrativo?: string | null;
+  ultima_cama?: string | null;
+  prob_sobre_estadia?: number | null;
+  grd_code?: string | null;
 }
 

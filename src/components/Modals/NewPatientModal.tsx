@@ -78,10 +78,29 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
     'Otro',
   ];
 
-  const calculateGlobalRisk = (social: RiskLevel, clinico: RiskLevel, administrativo: RiskLevel): GlobalRisk => {
-    const risks = [social, clinico, administrativo];
-    if (risks.includes('alto')) return 'rojo';
-    if (risks.includes('medio')) return 'amarillo';
+  /**
+   * Calcula el nivel de riesgo global basado en la probabilidad de sobre-estadía o días de hospitalización
+   * Usa la misma lógica que PatientService.calculateRiskLevel
+   */
+  const calculateGlobalRisk = (probSobreEstadia: number | null, diasHospitalizacion: number): GlobalRisk => {
+    // Si hay probabilidad disponible, usarla para calcular el riesgo
+    if (probSobreEstadia !== null && probSobreEstadia !== undefined) {
+      // Umbrales basados en probabilidad de sobre-estadía:
+      // - >= 70% (0.7): Rojo (Alto riesgo)
+      // - >= 40% (0.4) y < 70%: Amarillo (Medio riesgo)
+      // - < 40% (0.4): Verde (Bajo riesgo)
+      if (probSobreEstadia >= 0.66) return 'rojo';
+      if (probSobreEstadia >= 0.33) return 'amarillo';
+      return 'verde';
+    }
+    
+    // Si no hay probabilidad disponible, calcular basándose en días de hospitalización
+    // Umbrales basados en días de hospitalización:
+    // - > 15 días: Rojo (Alto riesgo)
+    // - > 7 días: Amarillo (Medio riesgo)
+    // - <= 7 días: Verde (Bajo riesgo)
+    if (diasHospitalizacion > 15) return 'rojo';
+    if (diasHospitalizacion > 7) return 'amarillo';
     return 'verde';
   };
 
@@ -234,14 +253,17 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
       setPrediccionResultados(prediccionResponse.items);
       setShowPrediccionResult(true);
 
+      // Obtener la probabilidad de sobre-estadía del primer resultado (solo se envía un paciente)
+      const prediccionResult = prediccionResponse.items[0];
+      const probSobreEstadia = prediccionResult?.probabilidad_sobre_estadia || null;
+
       // Crear el paciente después de la predicción
       const fechaIngreso = new Date();
       const diasHospitalizacion = calculateHospitalizationDays(fechaIngreso);
-      const nivelRiesgoGlobal = calculateGlobalRisk(
-        formData.riesgo_social,
-        formData.riesgo_clinico,
-        formData.riesgo_administrativo
-      );
+      
+      // Calcular nivel de riesgo global usando la misma lógica que PatientService
+      // Basado en probabilidad de sobre-estadía (o días de hospitalización como fallback)
+      const nivelRiesgoGlobal = calculateGlobalRisk(probSobreEstadia, diasHospitalizacion);
 
       // Usar la fecha de nacimiento ingresada directamente
       const fechaNacimiento = new Date(formData.fecha_de_nacimiento);
@@ -280,6 +302,8 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
         prevision: formData.prevision,
         created_at: fechaIngreso.toISOString(),
         updated_at: fechaIngreso.toISOString(),
+        prob_sobre_estadia: probSobreEstadia,
+        grd_code: formData.codigo_grd || null,
       };
 
       // Calcular mes y año desde fecha_inicio o fecha_admision
@@ -323,9 +347,17 @@ export const NewPatientModal: React.FC<NewPatientModalProps> = ({
         fecha_de_nacimiento: fechaNacimiento.toISOString().split('T')[0],
         sexo: formData.sexo === 'M' ? 'Masculino' : 'Femenino',
         fecha_admision: fechaIngreso.toISOString().split('T')[0],
+        fecha_alta: formData.fecha_estimada_alta || null,
         dias_hospitalizacion: diasHospitalizacion,
         convenio: formData.prevision,
         valor_parcial: '',
+        // Nuevos campos del endpoint
+        riesgo_social: formData.riesgo_social,
+        riesgo_clinico: formData.riesgo_clinico,
+        riesgo_administrativo: formData.riesgo_administrativo,
+        ultima_cama: nuevaGestion.cama || null,
+        prob_sobre_estadia: probSobreEstadia,
+        grd_code: formData.codigo_grd || null,
       };
 
       // Crear la gestión en el backend

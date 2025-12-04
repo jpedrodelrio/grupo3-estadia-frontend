@@ -71,14 +71,16 @@ export class PatientService {
       tipo_cuenta_2: persona.tipo_cuenta_2 || null,
       tipo_cuenta_3: persona.tipo_cuenta_3 || null,
       diagnostico_principal: this.getDiagnostico(diasHospitalizacion),
-      riesgo_social: 'medio',
-      riesgo_clinico: 'medio',
-      riesgo_administrativo: 'bajo',
-      nivel_riesgo_global: this.calculateRiskLevel(diasHospitalizacion),
+      riesgo_social: persona.riesgo_social || 'medio',
+      riesgo_clinico: persona.riesgo_clinico || 'medio',
+      riesgo_administrativo: persona.riesgo_administrativo || 'bajo',
+      nivel_riesgo_global: this.calculateRiskLevel(persona.prob_sobre_estadia, diasHospitalizacion),
       estado: estado,
       prevision: persona.convenio !== '#N/D' ? persona.convenio || '-' : 'FONASA',
       created_at: fechaAdmisionDate.toISOString(),
       updated_at: hoy.toISOString(),
+      prob_sobre_estadia: persona.prob_sobre_estadia ?? null,
+      grd_code: persona.grd_code ?? null,
     };
   }
 
@@ -120,9 +122,28 @@ export class PatientService {
   }
 
   /**
-   * Calcula el nivel de riesgo global basado en días de hospitalización
+   * Calcula el nivel de riesgo global basado en la probabilidad de sobre-estadía o días de hospitalización
+   * @param probSobreEstadia - Probabilidad de sobre-estadía (0-1) o null
+   * @param diasHospitalizacion - Días de hospitalización (usado como fallback si probSobreEstadia es null)
+   * @returns Nivel de riesgo: 'rojo' (alto), 'amarillo' (medio), 'verde' (bajo)
    */
-  private static calculateRiskLevel(diasHospitalizacion: number): 'verde' | 'amarillo' | 'rojo' {
+  private static calculateRiskLevel(probSobreEstadia: number | null, diasHospitalizacion: number): 'verde' | 'amarillo' | 'rojo' {
+    // Si hay probabilidad disponible, usarla para calcular el riesgo
+    if (probSobreEstadia !== null && probSobreEstadia !== undefined) {
+      // Umbrales basados en probabilidad de sobre-estadía:
+      // - >= 70% (0.7): Rojo (Alto riesgo)
+      // - >= 40% (0.4) y < 70%: Amarillo (Medio riesgo)
+      // - < 40% (0.4): Verde (Bajo riesgo)
+      if (probSobreEstadia >= 0.7) return 'rojo';
+      if (probSobreEstadia >= 0.4) return 'amarillo';
+      return 'verde';
+    }
+    
+    // Si no hay probabilidad disponible, calcular basándose en días de hospitalización
+    // Umbrales basados en días de hospitalización:
+    // - > 15 días: Rojo (Alto riesgo)
+    // - > 7 días: Amarillo (Medio riesgo)
+    // - <= 7 días: Verde (Bajo riesgo)
     if (diasHospitalizacion > 15) return 'rojo';
     if (diasHospitalizacion > 7) return 'amarillo';
     return 'verde';

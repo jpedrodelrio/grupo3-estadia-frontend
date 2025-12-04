@@ -23,6 +23,23 @@ export class ExcelExportService {
   }
 
   /**
+   * Formatea el texto del riesgo para mostrar
+   * Maneja valores como "bajo", "medio", "alto", "#N/D", null, undefined
+   */
+  private static formatRiskLabel(risk: string | null | undefined): string {
+    if (!risk || risk === '#N/D' || (typeof risk === 'string' && risk.trim() === '')) {
+      return 'No especificado';
+    }
+    const riskLower = typeof risk === 'string' ? risk.toLowerCase().trim() : '';
+    switch (riskLower) {
+      case 'bajo': return 'Bajo';
+      case 'medio': return 'Medio';
+      case 'alto': return 'Alto';
+      default: return typeof risk === 'string' ? risk.charAt(0).toUpperCase() + risk.slice(1).toLowerCase() : 'No especificado';
+    }
+  }
+
+  /**
    * Genera los datos de la hoja de información del paciente
    */
   private static generatePacienteData(patient: Patient): any[][] {
@@ -43,6 +60,10 @@ export class ExcelExportService {
       ['Días Hospitalizado', patient.dias_hospitalizacion ? `${patient.dias_hospitalizacion} días` : ''],
       ['Alta Estimada', patient.fecha_estimada_alta ? this.formatDate(patient.fecha_estimada_alta) : ''],
       ['Valor Parcial Estadia', patient.valor_parcial_estadia || ''],
+      ['Código GRD', patient.grd_code || ''],
+      ['Probabilidad de Sobre-Estadía', patient.prob_sobre_estadia !== null && patient.prob_sobre_estadia !== undefined 
+        ? `${(patient.prob_sobre_estadia * 100).toFixed(1)}%` 
+        : 'No disponible'],
       ['', ''],
       ['INFORMACIÓN FINANCIERA', ''],
       ['Convenio-Isapre', patient.convenio || ''],
@@ -52,12 +73,14 @@ export class ExcelExportService {
       ['Tipo Cuenta 3', patient.tipo_cuenta_3 || ''],
       ['', ''],
       ['EVALUACIÓN DE RIESGOS', ''],
-      ['Riesgo Social', patient.riesgo_social ? patient.riesgo_social.charAt(0).toUpperCase() + patient.riesgo_social.slice(1) : ''],
-      ['Riesgo Clínico', patient.riesgo_clinico ? patient.riesgo_clinico.charAt(0).toUpperCase() + patient.riesgo_clinico.slice(1) : ''],
-      ['Riesgo Administrativo', patient.riesgo_administrativo ? patient.riesgo_administrativo.charAt(0).toUpperCase() + patient.riesgo_administrativo.slice(1) : ''],
+      ['Riesgo Social', this.formatRiskLabel(patient.riesgo_social)],
+      ['Riesgo Clínico', this.formatRiskLabel(patient.riesgo_clinico)],
+      ['Riesgo Administrativo', this.formatRiskLabel(patient.riesgo_administrativo)],
       ['Nivel Riesgo Global', patient.nivel_riesgo_global ? 
-        (patient.nivel_riesgo_global === 'rojo' ? 'Alto' : 
-         patient.nivel_riesgo_global === 'amarillo' ? 'Medio' : 'Bajo') : ''],
+        (patient.nivel_riesgo_global === 'rojo' || patient.nivel_riesgo_global?.toLowerCase() === 'rojo' ? 'Alto' : 
+         patient.nivel_riesgo_global === 'amarillo' || patient.nivel_riesgo_global?.toLowerCase() === 'amarillo' ? 'Medio' : 
+         patient.nivel_riesgo_global === 'verde' || patient.nivel_riesgo_global?.toLowerCase() === 'verde' ? 'Bajo' : 
+         this.formatRiskLabel(patient.nivel_riesgo_global)) : ''],
       ['', ''],
       ['Diagnóstico Principal', patient.diagnostico_principal || ''],
     ];
