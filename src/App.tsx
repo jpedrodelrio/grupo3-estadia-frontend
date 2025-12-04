@@ -328,7 +328,7 @@ function App() {
             />
 
             <div className="mb-6">
-              <AlertsPanel />
+              <AlertsPanel patients={patients} onCreateTask={handleCreateTask} />
             </div>
 
             <PatientTable

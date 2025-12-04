@@ -305,6 +305,29 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
       if (patient.tipo_cuenta_3) {
         gestionData.tipo_cuenta_3 = patient.tipo_cuenta_3;
       }
+      if (patient.riesgo_social) {
+        gestionData.riesgo_social = patient.riesgo_social;
+      }
+      if (patient.riesgo_clinico) {
+        gestionData.riesgo_clinico = patient.riesgo_clinico;
+      }
+      if (patient.riesgo_administrativo) {
+        gestionData.riesgo_administrativo = patient.riesgo_administrativo;
+      }
+      if (patient.ultima_cama) {
+        gestionData.ultima_cama = patient.ultima_cama;
+      }
+      // Usar los campos del paciente si están disponibles
+      if (patient.prob_sobre_estadia !== null && patient.prob_sobre_estadia !== undefined) {
+        gestionData.prob_sobre_estadia = patient.prob_sobre_estadia;
+      } else {
+        gestionData.prob_sobre_estadia = null;
+      }
+      if (patient.grd_code) {
+        gestionData.grd_code = patient.grd_code;
+      } else {
+        gestionData.grd_code = null;
+      }
 
       // Llamar al endpoint para crear la gestión
       await createGestion(gestionData);
@@ -593,12 +616,63 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
     onClose();
   };
 
-  const getRiskColor = (risk: string) => {
-    switch (risk) {
+  /**
+   * Obtiene el color y estilo para un nivel de riesgo
+   * Maneja valores como "bajo", "medio", "alto", "#N/D", null, undefined
+   */
+  const getRiskColor = (risk: string | null | undefined): string => {
+    if (!risk || risk === '#N/D' || risk.trim() === '') {
+      return 'text-gray-600 bg-gray-100';
+    }
+    const riskLower = risk.toLowerCase().trim();
+    switch (riskLower) {
       case 'bajo': return 'text-green-600 bg-green-100';
       case 'medio': return 'text-yellow-600 bg-yellow-100';
       case 'alto': return 'text-red-600 bg-red-100';
       default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  /**
+   * Formatea el texto del riesgo para mostrar
+   * Maneja valores como "bajo", "medio", "alto", "#N/D", null, undefined
+   */
+  const formatRiskLabel = (risk: string | null | undefined): string => {
+    if (!risk || risk === '#N/D' || risk.trim() === '') {
+      return 'No especificado';
+    }
+    const riskLower = risk.toLowerCase().trim();
+    switch (riskLower) {
+      case 'bajo': return 'Bajo';
+      case 'medio': return 'Medio';
+      case 'alto': return 'Alto';
+      default: return risk.charAt(0).toUpperCase() + risk.slice(1).toLowerCase();
+    }
+  };
+
+  /**
+   * Formatea la probabilidad de sobre-estadía como porcentaje
+   */
+  const formatProbabilidadSobreEstadia = (prob: number | null | undefined): string => {
+    if (prob === null || prob === undefined) {
+      return 'No disponible';
+    }
+    return `${(prob * 100).toFixed(2)}%`;
+  };
+
+  /**
+   * Obtiene el color para la probabilidad de sobre-estadía
+   */
+  const getProbabilidadColor = (prob: number | null | undefined): string => {
+    if (prob === null || prob === undefined) {
+      return 'text-gray-600 bg-gray-100';
+    }
+    if (prob >= 0.66) {
+      return 'text-red-600 bg-red-100'; // Alta probabilidad (>=70%)
+    } else if (prob >= 0.33) {
+      return 'text-yellow-600 bg-yellow-100'; // Media probabilidad (40-69%)
+    } else {
+      return 'text-green-600 bg-green-100'; // Baja probabilidad (<40%)
     }
   };
 
@@ -768,6 +842,30 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                     <dt className="text-sm font-medium text-gray-500">Valor Parcial de la Estadia</dt>
                     <dd className="text-sm text-gray-900">{patient.valor_parcial_estadia || '-'}</dd>
                   </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Código GRD</dt>
+                    <dd className="text-sm text-gray-900">
+                      {patient.grd_code ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-sm font-mono bg-blue-50 text-blue-700 border border-blue-200">
+                          {patient.grd_code}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">No disponible</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Probabilidad de Sobre-Estadía</dt>
+                    <dd className="text-sm">
+                      {patient.prob_sobre_estadia !== null && patient.prob_sobre_estadia !== undefined ? (
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getProbabilidadColor(patient.prob_sobre_estadia)}`}>
+                          {formatProbabilidadSobreEstadia(patient.prob_sobre_estadia)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">No disponible</span>
+                      )}
+                    </dd>
+                  </div>
                 </dl>
               </div>
 
@@ -776,27 +874,33 @@ export const PatientDetailModal: React.FC<PatientDetailModalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="text-center">
                     <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRiskColor(patient.riesgo_social)}`}>
-                      Riesgo Social: {patient.riesgo_social.charAt(0).toUpperCase() + patient.riesgo_social.slice(1)}
+                      Riesgo Social: {formatRiskLabel(patient.riesgo_social)}
                     </div>
                   </div>
                   <div className="text-center">
                     <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRiskColor(patient.riesgo_clinico)}`}>
-                      Riesgo Clínico: {patient.riesgo_clinico.charAt(0).toUpperCase() + patient.riesgo_clinico.slice(1)}
+                      Riesgo Clínico: {formatRiskLabel(patient.riesgo_clinico)}
                     </div>
                   </div>
                   <div className="text-center">
                     <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getRiskColor(patient.riesgo_administrativo)}`}>
-                      Riesgo Admin.: {patient.riesgo_administrativo.charAt(0).toUpperCase() + patient.riesgo_administrativo.slice(1)}
+                      Riesgo Admin.: {formatRiskLabel(patient.riesgo_administrativo)}
                     </div>
                   </div>
                   <div className="text-center">
                     <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                      patient.nivel_riesgo_global === 'verde' ? 'bg-green-100 text-green-800' :
-                      patient.nivel_riesgo_global === 'amarillo' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
+                      patient.nivel_riesgo_global === 'verde' || patient.nivel_riesgo_global?.toLowerCase() === 'verde' ? 'bg-green-100 text-green-800' :
+                      patient.nivel_riesgo_global === 'amarillo' || patient.nivel_riesgo_global?.toLowerCase() === 'amarillo' ? 'bg-yellow-100 text-yellow-800' :
+                      patient.nivel_riesgo_global === 'rojo' || patient.nivel_riesgo_global?.toLowerCase() === 'rojo' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
                     }`}>
-                      {patient.nivel_riesgo_global === 'rojo' && <AlertTriangle className="h-4 w-4 mr-1" />}
-                      Global: {patient.nivel_riesgo_global === 'rojo' ? 'Alto' : patient.nivel_riesgo_global === 'amarillo' ? 'Medio' : 'Bajo'}
+                      {(patient.nivel_riesgo_global === 'rojo' || patient.nivel_riesgo_global?.toLowerCase() === 'rojo') && <AlertTriangle className="h-4 w-4 mr-1" />}
+                      Global: {
+                        patient.nivel_riesgo_global === 'rojo' || patient.nivel_riesgo_global?.toLowerCase() === 'rojo' ? 'Alto' : 
+                        patient.nivel_riesgo_global === 'amarillo' || patient.nivel_riesgo_global?.toLowerCase() === 'amarillo' ? 'Medio' : 
+                        patient.nivel_riesgo_global === 'verde' || patient.nivel_riesgo_global?.toLowerCase() === 'verde' ? 'Bajo' : 
+                        formatRiskLabel(patient.nivel_riesgo_global)
+                      }
                     </div>
                   </div>
                 </div>
